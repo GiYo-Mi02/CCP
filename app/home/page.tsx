@@ -7,6 +7,7 @@ import { getCurrentProfile } from '@/lib/actions/profile';
 import { getActiveSession } from '@/lib/actions/periods';
 import type { PeriodType, PeriodState } from '@/lib/types/database';
 import type { Status } from '@/components/shared/StatusBadge';
+import { RealtimeRefresh } from '@/components/shared/RealtimeRefresh';
 
 // ─── Helpers to map DB types to UI props ─────────────────────────────
 
@@ -78,6 +79,13 @@ export default async function HomePage() {
 
   return (
     <div className="min-h-screen bg-ccd-bg flex flex-col relative">
+      <RealtimeRefresh
+        channelName="home-live-refresh"
+        tables={[
+          { table: 'sessions' },
+          { table: 'periods' },
+        ]}
+      />
       <TopNav 
         delegateName={profile.full_name || 'Delegate'} 
         delegateAvatarUrl={profile.avatar_url ?? undefined} 

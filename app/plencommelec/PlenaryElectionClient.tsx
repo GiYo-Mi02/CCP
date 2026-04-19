@@ -5,6 +5,7 @@ import { Check, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { TopNav } from '@/components/shared/TopNav';
 import { submitElectionVotes } from '@/lib/actions/elections';
+import { useRealtimeRefresh } from '@/hooks/use-realtime-refresh';
 
 interface CandidateOption {
   id: string;
@@ -23,6 +24,7 @@ interface PlenaryElectionClientProps {
   delegateName: string;
   delegateAvatarUrl?: string;
   sessionName?: string;
+  electionId: string;
   electionName: string;
   hasSubmitted: boolean;
   positions: PositionBlock[];
@@ -32,6 +34,7 @@ export function PlenaryElectionClient({
   delegateName,
   delegateAvatarUrl,
   sessionName,
+  electionId,
   electionName,
   hasSubmitted,
   positions,
@@ -42,6 +45,17 @@ export function PlenaryElectionClient({
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(hasSubmitted);
   const [selections, setSelections] = useState<Record<string, string>>({});
+
+  useRealtimeRefresh({
+    channelName: `election-live-${electionId}`,
+    tables: [
+      { table: 'elections', filter: `id=eq.${electionId}` },
+      { table: 'election_positions' },
+      { table: 'candidates' },
+      { table: 'election_votes' },
+      { table: 'periods' },
+    ],
+  });
 
   const scopes = useMemo(
     () => Array.from(new Set(positions.map((position) => position.scope).filter((scope) => scope !== 'plenary'))),

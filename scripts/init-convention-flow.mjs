@@ -37,6 +37,39 @@ const REQUIRED_PERIODS = [
   { period_type: 'final_votation', sort_order: 6 },
 ];
 
+const FINAL_VOTATION_DEMO_MOTIONS = [
+  {
+    article_ref: 'Article II',
+    section_ref: 'Section 1',
+    original_text:
+      'The plenary committee shall convene on demand as prescribed by the presiding officer.',
+    proposed_text:
+      'The plenary committee shall convene on a fixed bi-weekly calendar unless emergency session is approved by majority vote.',
+    justification:
+      'Regular cadence improves preparation and reduces procedural confusion during critical votes.',
+  },
+  {
+    article_ref: 'Article IV',
+    section_ref: 'Section 3',
+    original_text:
+      'Delegates may submit motions in writing before the close of deliberation.',
+    proposed_text:
+      'Delegates may submit motions in writing and through the secured digital docket before deliberation closes.',
+    justification:
+      'Digital submission keeps records auditable and prevents lost paper submissions in high-volume sessions.',
+  },
+  {
+    article_ref: 'Article VI',
+    section_ref: 'Section 2',
+    original_text:
+      'Committee reports shall be presented at the discretion of the chair.',
+    proposed_text:
+      'Committee reports shall be presented at the opening of each plenary day with a five-minute summary cap.',
+    justification:
+      'Standardized reporting reduces agenda drift and ensures all committees are heard fairly.',
+  },
+];
+
 async function main() {
   const env = parseEnvFile('.env.local');
   const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
@@ -132,6 +165,91 @@ async function main() {
   for (const period of finalPeriods || []) {
     console.log(`- ${period.sort_order}: ${period.period_type} (${period.state})`);
   }
+
+  const { data: finalVotationPeriod, error: finalPeriodError } = await supabase
+    .from('periods')
+    .select('id')
+    .eq('session_id', sessionId)
+    .eq('period_type', 'final_votation')
+    .maybeSingle();
+
+  if (finalPeriodError) {
+    console.error(`Failed loading final votation period: ${finalPeriodError.message}`);
+    process.exit(1);
+  }
+
+  if (!finalVotationPeriod) {
+    console.log('Final votation period not found, skipping demo motion seeding.');
+    return;
+  }
+
+  const { count: finalMotionCount, error: finalMotionCountError } = await supabase
+    .from('motions')
+    .select('id', { count: 'exact', head: true })
+    .eq('period_id', finalVotationPeriod.id);
+
+  if (finalMotionCountError) {
+    console.error(`Failed checking final motions: ${finalMotionCountError.message}`);
+    process.exit(1);
+  }
+
+  if ((finalMotionCount ?? 0) > 0) {
+    console.log(`Final votation already has ${finalMotionCount} motion(s). Demo seed skipped.`);
+    return;
+  }
+
+  const { data: delegates, error: delegatesError } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('role', 'delegate')
+    .order('created_at', { ascending: true });
+
+  if (delegatesError) {
+    console.error(`Failed loading delegates for demo seed: ${delegatesError.message}`);
+    process.exit(1);
+  }
+
+  let authorPool = delegates ?? [];
+
+  if (authorPool.length === 0) {
+    const { data: fallbackProfiles, error: fallbackProfilesError } = await supabase
+      .from('profiles')
+      .select('id')
+      .order('created_at', { ascending: true });
+
+    if (fallbackProfilesError) {
+      console.error(`Failed loading fallback profiles for demo seed: ${fallbackProfilesError.message}`);
+      process.exit(1);
+    }
+
+    authorPool = fallbackProfiles ?? [];
+  }
+
+  if (authorPool.length === 0) {
+    console.log('No profiles found. Skipping final votation demo motion seeding.');
+    return;
+  }
+
+  const seedRows = FINAL_VOTATION_DEMO_MOTIONS.map((motion, index) => ({
+    period_id: finalVotationPeriod.id,
+    author_id: authorPool[index % authorPool.length].id,
+    motion_type: 'quick_motion',
+    article_ref: motion.article_ref,
+    section_ref: motion.section_ref,
+    original_text: motion.original_text,
+    proposed_text: motion.proposed_text,
+    justification: motion.justification,
+    status: 'pending',
+  }));
+
+  const { error: seedError } = await supabase.from('motions').insert(seedRows);
+
+  if (seedError) {
+    console.error(`Failed seeding final votation demo motions: ${seedError.message}`);
+    process.exit(1);
+  }
+
+  console.log(`Seeded ${seedRows.length} demo motion(s) for final votation.`);
 }
 
 main().catch((error) => {

@@ -10,6 +10,7 @@ import { submitQuickMotion } from '@/lib/actions/motions';
 import { TopNav } from '@/components/shared/TopNav';
 import { Timer } from '@/components/shared/Timer';
 import type { PeriodState, VoteValue } from '@/lib/types/database';
+import { useRealtimeRefresh } from '@/hooks/use-realtime-refresh';
 
 interface QuickMotionClientProps {
   delegateName: string;
@@ -52,6 +53,15 @@ export function QuickMotionClient({
   const [newMotionText, setNewMotionText] = useState('');
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  useRealtimeRefresh({
+    channelName: `quick-motion-live-${periodId}`,
+    tables: [
+      { table: 'periods', filter: `id=eq.${periodId}` },
+      { table: 'motions', filter: `period_id=eq.${periodId}` },
+      { table: 'votes' },
+    ],
+  });
 
   const aggregateMap = useMemo(() => new Map(voteAggregates.map((row) => [row.motion_id, row])), [voteAggregates]);
   const userVoteMap = useMemo(() => new Map(userVotes.map((row) => [row.motion_id, row.vote_value])), [userVotes]);

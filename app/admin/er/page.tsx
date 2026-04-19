@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { getActiveElection, getElectionVoteSummary } from '@/lib/actions/elections';
+import { RealtimeRefresh } from '@/components/shared/RealtimeRefresh';
 
 type VoteAggregate = {
   adapt: number;
@@ -109,6 +110,19 @@ export default async function AdminERPage() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 px-4 sm:px-8 lg:px-12 py-10">
+      <RealtimeRefresh
+        channelName="admin-er-live-refresh"
+        tables={[
+          { table: 'sessions' },
+          { table: 'periods' },
+          { table: 'motions' },
+          { table: 'votes' },
+          { table: 'elections' },
+          { table: 'election_positions' },
+          { table: 'candidates' },
+          { table: 'election_votes' },
+        ]}
+      />
       <div className="mx-auto max-w-7xl">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
@@ -192,7 +206,15 @@ export default async function AdminERPage() {
         </section>
 
         <section className="mt-8 rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5 sm:p-6">
-          <h2 className="font-serif text-2xl">Election Monitoring</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="font-serif text-2xl">Election Monitoring</h2>
+            <Link
+              href="/admin/elections"
+              className="px-3 py-2 rounded-lg border border-zinc-700 text-zinc-200 hover:bg-zinc-800 text-xs uppercase tracking-[0.12em]"
+            >
+              Open Candidate Manager
+            </Link>
+          </div>
           {!electionResult.data ? (
             <p className="text-zinc-500 mt-3">No active election configured.</p>
           ) : (

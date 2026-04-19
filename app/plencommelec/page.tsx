@@ -61,6 +61,7 @@ export default async function PlenaryElectionsPage() {
       delegateName={profileResult.data.full_name || 'Delegate'}
       delegateAvatarUrl={profileResult.data.avatar_url ?? undefined}
       sessionName={sessionData.session.name}
+      electionId={electionResult.data.election.id}
       electionName={electionResult.data.election.name}
       hasSubmitted={hasVoted}
       positions={positions}

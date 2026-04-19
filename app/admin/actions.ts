@@ -120,7 +120,7 @@ async function ensureElectionScaffold(
   if (delegateRows.length === 0) {
     const { data: fallbackProfiles, error: fallbackProfilesError } = await supabase
       .from('profiles')
-      .select('id, committee');
+      .select('id, committee, role');
 
     if (fallbackProfilesError) {
       return { error: fallbackProfilesError.message };

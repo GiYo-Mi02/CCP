@@ -11,6 +11,21 @@ export interface VoteAggregate {
   total: number;
 }
 
+interface VoteRow {
+  motion_id: string;
+  vote_value: VoteValue;
+}
+
+interface VoteRowsResponse {
+  data: VoteRow[];
+  error?: string;
+}
+
+interface VoteAggregatesResponse {
+  data: VoteAggregate[];
+  error?: string;
+}
+
 /**
  * Cast a vote on a motion using the atomic `cast_vote` DB function.
  * Prevents double-voting at the database level via UNIQUE constraint.
@@ -101,7 +116,7 @@ export async function getVoteDetails(motionId: string) {
 /**
  * Get all votes for a list of motions.
  */
-export async function getVotesByMotionIds(motionIds: string[]) {
+export async function getVotesByMotionIds(motionIds: string[]): Promise<VoteRowsResponse> {
   if (motionIds.length === 0) return { data: [] };
 
   const supabase = await createClient();
@@ -111,14 +126,14 @@ export async function getVotesByMotionIds(motionIds: string[]) {
     .select('motion_id, vote_value')
     .in('motion_id', motionIds);
 
-  if (error) return { error: error.message };
-  return { data: data ?? [] };
+  if (error) return { data: [], error: error.message };
+  return { data: (data ?? []) as VoteRow[] };
 }
 
 /**
  * Get the current user's votes across multiple motions.
  */
-export async function getUserVotesByMotionIds(motionIds: string[]) {
+export async function getUserVotesByMotionIds(motionIds: string[]): Promise<VoteRowsResponse> {
   if (motionIds.length === 0) return { data: [] };
 
   const supabase = await createClient();
@@ -134,16 +149,20 @@ export async function getUserVotesByMotionIds(motionIds: string[]) {
     .eq('voter_id', user.id)
     .in('motion_id', motionIds);
 
-  if (error) return { error: error.message };
-  return { data: data ?? [] };
+  if (error) return { data: [], error: error.message };
+  return { data: (data ?? []) as VoteRow[] };
 }
 
 /**
  * Build per-motion vote aggregates for dashboard and monitoring pages.
  */
-export async function getVoteAggregatesByMotionIds(motionIds: string[]) {
+export async function getVoteAggregatesByMotionIds(
+  motionIds: string[]
+): Promise<VoteAggregatesResponse> {
   const votesResult = await getVotesByMotionIds(motionIds);
-  if ('error' in votesResult) return votesResult;
+  if (votesResult.error) {
+    return { data: [], error: votesResult.error };
+  }
 
   const aggregates = new Map<string, VoteAggregate>();
 

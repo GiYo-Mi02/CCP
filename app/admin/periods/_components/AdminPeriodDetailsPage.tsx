@@ -1,5 +1,8 @@
+'use client';
+
 import Link from 'next/link';
 import type { AdminPeriodMotionDetail } from '../_lib/getAdminPeriodDetails';
+import { useRealtimeRefresh } from '@/hooks/use-realtime-refresh';
 
 interface AdminPeriodDetailsPageProps {
   heading: string;
@@ -51,6 +54,15 @@ export function AdminPeriodDetailsPage({
   deadline,
   motionDetails,
 }: AdminPeriodDetailsPageProps) {
+  useRealtimeRefresh({
+    channelName: `admin-period-details-${heading.toLowerCase().replace(/\s+/g, '-')}`,
+    tables: [
+      { table: 'periods' },
+      { table: 'motions' },
+      { table: 'votes' },
+    ],
+  });
+
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 px-4 sm:px-8 lg:px-12 py-10">
       <div className="mx-auto max-w-7xl">

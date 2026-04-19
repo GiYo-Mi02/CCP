@@ -11,6 +11,7 @@ import {
   setGlobalTimer,
   updatePeriodStatus,
 } from './actions';
+import { useRealtimeRefresh } from '@/hooks/use-realtime-refresh';
 
 type AdminPeriod = {
   id: string;
@@ -45,6 +46,7 @@ const PERIOD_ROUTE_MAP: Record<PeriodType, string> = {
 };
 
 const ADMIN_REVIEW_ROUTE_MAP: Partial<Record<PeriodType, string>> = {
+  election: '/admin/elections',
   quash: '/admin/periods/quash',
   amendment: '/admin/periods/amendment',
   insertion: '/admin/periods/insertion',
@@ -132,6 +134,19 @@ export function AdminDashboardClient({ session, periods, totalMotions }: AdminDa
   const [isPending, startTransition] = useTransition();
   const [durationMinutes, setDurationMinutes] = useState<number>(10);
   const [feedback, setFeedback] = useState<string | null>(null);
+
+  useRealtimeRefresh({
+    channelName: 'admin-dashboard-live-refresh',
+    tables: [
+      { table: 'sessions' },
+      { table: 'periods' },
+      { table: 'motions' },
+      { table: 'votes' },
+      { table: 'elections' },
+      { table: 'election_votes' },
+    ],
+  });
+
   const hasActiveSession = Boolean(session);
   const displayPeriods = hasActiveSession ? periods : TEMPLATE_PERIODS;
 
@@ -291,6 +306,10 @@ export function AdminDashboardClient({ session, periods, totalMotions }: AdminDa
                 {displayPeriods.map((period) => {
                   const chip = stateToChip(period.state);
                   const reviewHref = ADMIN_REVIEW_ROUTE_MAP[period.period_type];
+                  const reviewLabel =
+                    period.period_type === 'election'
+                      ? 'Manage Candidates'
+                      : 'Review Proposals';
                   return (
                     <article
                       key={period.id}
@@ -312,7 +331,7 @@ export function AdminDashboardClient({ session, periods, totalMotions }: AdminDa
                             href={reviewHref}
                             className="px-4 py-2 rounded-xl border border-amber-400/40 bg-amber-500/15 hover:bg-amber-500/25 text-amber-100 text-sm font-semibold"
                           >
-                            Review Proposals
+                            {reviewLabel}
                           </Link>
                         )}
                         <Link
@@ -408,6 +427,12 @@ export function AdminDashboardClient({ session, periods, totalMotions }: AdminDa
               <div className="flex items-center justify-between gap-4 mb-6">
                 <h2 className="font-serif text-2xl text-white">Quick Overview</h2>
                 <div className="flex items-center gap-3">
+                  <Link
+                    href="/admin/elections"
+                    className="px-3 py-2 rounded-lg border border-zinc-700 text-zinc-200 hover:bg-zinc-800 text-xs uppercase tracking-[0.12em]"
+                  >
+                    Manage Candidates
+                  </Link>
                   <Link
                     href="/admin/er"
                     className="px-3 py-2 rounded-lg border border-zinc-700 text-zinc-200 hover:bg-zinc-800 text-xs uppercase tracking-[0.12em]"

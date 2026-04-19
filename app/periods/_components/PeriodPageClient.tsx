@@ -8,6 +8,7 @@ import { Timer } from '@/components/shared/Timer';
 import { castVote } from '@/lib/actions/votes';
 import { submitMotion } from '@/lib/actions/motions';
 import type { MotionType, PeriodState, VoteValue } from '@/lib/types/database';
+import { useRealtimeRefresh } from '@/hooks/use-realtime-refresh';
 
 export interface PeriodMotionItem {
   id: string;
@@ -76,6 +77,15 @@ export function PeriodPageClient({
   const [isPending, startTransition] = useTransition();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+
+  useRealtimeRefresh({
+    channelName: `period-live-${periodId}`,
+    tables: [
+      { table: 'periods', filter: `id=eq.${periodId}` },
+      { table: 'motions', filter: `period_id=eq.${periodId}` },
+      { table: 'votes' },
+    ],
+  });
 
   const aggregateMap = useMemo(() => {
     const map = new Map<string, PeriodVoteAggregate>();
