@@ -1,7 +1,10 @@
+'use client';
+
 import React from 'react';
 import Link from 'next/link';
-import { Gavel, LogOut } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 import { ProfileAvatar } from './ProfileAvatar';
+import { logout } from '@/lib/actions/auth';
 
 interface TopNavProps {
   sessionName?: string;
@@ -47,7 +50,11 @@ export function TopNav({ sessionName, delegateName, delegateAvatarUrl, leftCompo
             <span className="font-semibold text-[14px] text-ccd-text hidden sm:block">Hon. {delegateName.split(' ').pop()}</span>
           </Link>
 
-          <button className="text-ccd-text-sec hover:text-ccd-danger transition-colors p-2" title="Logout">
+          <button 
+            onClick={() => logout()}
+            className="text-ccd-text-sec hover:text-ccd-danger transition-colors p-2" 
+            title="Logout"
+          >
             <LogOut className="w-5 h-5" />
           </button>
         </div>
