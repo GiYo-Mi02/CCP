@@ -89,19 +89,82 @@ export async function hasUserVotedInElection(electionId: string) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return false;
 
-  // Check if user has any election vote for positions in this election
+  const { data: positions, error: positionsError } = await supabase
+    .from('election_positions')
+    .select('id')
+    .eq('election_id', electionId);
+
+  if (positionsError || !positions || positions.length === 0) return false;
+
+  const positionIds = positions.map((position) => position.id);
+
   const { data } = await supabase
     .from('election_votes')
-    .select(`
-      id,
-      position:election_positions!position_id (election_id)
-    `)
+    .select('id')
     .eq('voter_id', user.id)
+    .in('position_id', positionIds)
     .limit(1);
 
-  // Filter by election_id client-side (since it's a nested field)
   if (!data || data.length === 0) return false;
   return true;
+}
+
+/**
+ * Admin: Aggregate election vote totals per candidate.
+ */
+export async function getElectionVoteSummary(electionId: string) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: 'Not authenticated.' };
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  if (profile?.role !== 'admin') {
+    return { error: 'Unauthorized: Admin access required.' };
+  }
+
+  const { data: positions, error } = await supabase
+    .from('election_positions')
+    .select(
+      `
+      id,
+      title,
+      scope,
+      candidates (
+        id,
+        profile:profiles!profile_id (id, full_name, college),
+        votes:election_votes!candidate_id (id)
+      )
+    `
+    )
+    .eq('election_id', electionId)
+    .order('title', { ascending: true });
+
+  if (error) return { error: error.message };
+
+  const data = (positions ?? []).map((position) => {
+    const candidates = (position.candidates ?? []).map((candidate: Record<string, unknown>) => {
+      const votes = Array.isArray(candidate.votes) ? candidate.votes : [];
+      return {
+        ...candidate,
+        vote_count: votes.length,
+      };
+    });
+
+    return {
+      ...position,
+      candidates,
+    };
+  });
+
+  return { data };
 }
 
 /**

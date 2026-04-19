@@ -3,6 +3,14 @@
 import { createClient } from '@/lib/supabase/server';
 import type { VoteValue } from '@/lib/types/database';
 
+export interface VoteAggregate {
+  motion_id: string;
+  adapt: number;
+  quash: number;
+  abstain: number;
+  total: number;
+}
+
 /**
  * Cast a vote on a motion using the atomic `cast_vote` DB function.
  * Prevents double-voting at the database level via UNIQUE constraint.
@@ -88,4 +96,76 @@ export async function getVoteDetails(motionId: string) {
 
   if (error) return { error: error.message };
   return { data };
+}
+
+/**
+ * Get all votes for a list of motions.
+ */
+export async function getVotesByMotionIds(motionIds: string[]) {
+  if (motionIds.length === 0) return { data: [] };
+
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('votes')
+    .select('motion_id, vote_value')
+    .in('motion_id', motionIds);
+
+  if (error) return { error: error.message };
+  return { data: data ?? [] };
+}
+
+/**
+ * Get the current user's votes across multiple motions.
+ */
+export async function getUserVotesByMotionIds(motionIds: string[]) {
+  if (motionIds.length === 0) return { data: [] };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { data: [] };
+
+  const { data, error } = await supabase
+    .from('votes')
+    .select('motion_id, vote_value')
+    .eq('voter_id', user.id)
+    .in('motion_id', motionIds);
+
+  if (error) return { error: error.message };
+  return { data: data ?? [] };
+}
+
+/**
+ * Build per-motion vote aggregates for dashboard and monitoring pages.
+ */
+export async function getVoteAggregatesByMotionIds(motionIds: string[]) {
+  const votesResult = await getVotesByMotionIds(motionIds);
+  if ('error' in votesResult) return votesResult;
+
+  const aggregates = new Map<string, VoteAggregate>();
+
+  for (const motionId of motionIds) {
+    aggregates.set(motionId, {
+      motion_id: motionId,
+      adapt: 0,
+      quash: 0,
+      abstain: 0,
+      total: 0,
+    });
+  }
+
+  for (const vote of votesResult.data) {
+    const existing = aggregates.get(vote.motion_id);
+    if (!existing) continue;
+
+    if (vote.vote_value === 'adapt') existing.adapt += 1;
+    if (vote.vote_value === 'quash') existing.quash += 1;
+    if (vote.vote_value === 'abstain') existing.abstain += 1;
+    existing.total += 1;
+  }
+
+  return { data: Array.from(aggregates.values()) };
 }

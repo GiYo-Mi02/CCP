@@ -5,7 +5,7 @@ import { getMotionsByPeriod } from '@/lib/actions/motions';
 import { getUserVotesByMotionIds, getVoteAggregatesByMotionIds } from '@/lib/actions/votes';
 import { PeriodPageClient } from '../_components/PeriodPageClient';
 
-export default async function QuashingPeriodPage() {
+export default async function FinalVotationPage() {
   const [profileResult, sessionResult] = await Promise.all([
     getCurrentProfile(),
     getActiveSession(),
@@ -22,20 +22,20 @@ export default async function QuashingPeriodPage() {
       <div className="min-h-screen bg-ccd-bg flex items-center justify-center px-6">
         <div className="max-w-xl bg-white rounded-2xl border border-ccd-accent/20 p-8 text-center">
           <h1 className="font-serif text-3xl text-ccd-text">No Active Session</h1>
-          <p className="text-ccd-text-sec mt-2">Quashing period will be available once an active session is started by the administration.</p>
+          <p className="text-ccd-text-sec mt-2">Final votation is available once an active session is started.</p>
         </div>
       </div>
     );
   }
 
-  const period = sessionData.periods.find((item) => item.period_type === 'quash');
+  const period = sessionData.periods.find((item) => item.period_type === 'final_votation');
 
   if (!period) {
     return (
       <div className="min-h-screen bg-ccd-bg flex items-center justify-center px-6">
         <div className="max-w-xl bg-white rounded-2xl border border-ccd-accent/20 p-8 text-center">
-          <h1 className="font-serif text-3xl text-ccd-text">Quashing Period Not Configured</h1>
-          <p className="text-ccd-text-sec mt-2">Ask an admin to initialize the convention flow.</p>
+          <h1 className="font-serif text-3xl text-ccd-text">Final Votation Not Configured</h1>
+          <p className="text-ccd-text-sec mt-2">Ask the admin to initialize or update the session periods.</p>
         </div>
       </div>
     );
@@ -59,9 +59,9 @@ export default async function QuashingPeriodPage() {
       periodId={period.id}
       periodState={period.state}
       deadline={period.deadline}
-      periodTitle="Quashing Period"
-      periodDescription="Review, debate, and vote on motions proposing to remove constitutional provisions."
-      motionType="quash"
+      periodTitle="Final Votation"
+      periodDescription="Cast the final vote and review the complete results for motions moved to final deliberation."
+      motionType="quick_motion"
       motions={motions.map((motion) => ({
         id: motion.id,
         article_ref: motion.article_ref,
@@ -75,6 +75,7 @@ export default async function QuashingPeriodPage() {
       }))}
       voteAggregates={aggregatesResult.data ?? []}
       userVotes={userVotesResult.data ?? []}
+      allowSubmission={false}
     />
   );
 }
