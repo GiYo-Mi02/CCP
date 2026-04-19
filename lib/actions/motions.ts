@@ -108,6 +108,30 @@ export async function getMotionsByPeriod(periodId: string) {
 }
 
 /**
+ * Fetch motions and all related votes in a single query.
+ * This avoids the common server-component waterfall caused by follow-up vote queries.
+ */
+export async function getMotionsWithVotesByPeriod(periodId: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('motions')
+    .select(`
+      *,
+      author:profiles!author_id (full_name, college, committee),
+      votes (
+        voter_id,
+        vote_value
+      )
+    `)
+    .eq('period_id', periodId)
+    .order('created_at', { ascending: true });
+
+  if (error) return { error: error.message };
+  return { data };
+}
+
+/**
  * Fetch all motions authored by a specific user (for dashboard contributions).
  */
 export async function getMotionsByAuthor(authorId: string) {

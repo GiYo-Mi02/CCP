@@ -13,7 +13,21 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 
 export async function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+  const isPublicRoute =
+    pathname === '/' ||
+    pathname === '/login' ||
+    pathname.startsWith('/auth/');
+
   let response = NextResponse.next({ request });
+
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    if (!isPublicRoute) {
+      const loginUrl = new URL('/login', request.url);
+      return NextResponse.redirect(loginUrl);
+    }
+    return response;
+  }
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -36,16 +50,16 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // IMPORTANT: Do NOT use supabase.auth.getSession() here.
-  // getUser() sends a request to the Supabase Auth server every time
-  // to revalidate the Auth token, while getSession() reads from
-  // the potentially stale local cookie.
-  const { data: { user } } = await supabase.auth.getUser();
-  const pathname = request.nextUrl.pathname;
-  const isPublicRoute =
-    pathname === '/' ||
-    pathname === '/login' ||
-    pathname.startsWith('/auth/');
+  let user: { id: string } | null = null;
+
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    user = session?.user ?? null;
+  } catch {
+    user = null;
+  }
 
   // Redirect unauthenticated users to login
   if (!user && !isPublicRoute) {

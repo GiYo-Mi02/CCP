@@ -730,10 +730,12 @@ async function ensureWritablePeriods(adminClient, periods) {
   }
 
   for (const update of updates) {
-    const { error } = await adminClient
-      .from('periods')
-      .update({ state: update.to, deadline: null })
-      .eq('id', update.id);
+    const { error } = await withRetry(() =>
+      adminClient
+        .from('periods')
+        .update({ state: update.to, deadline: null })
+        .eq('id', update.id)
+    );
 
     if (error) {
       throw new Error(`Failed updating period ${update.id} -> ${update.to}: ${error.message}`);
@@ -749,10 +751,12 @@ async function ensureWritablePeriods(adminClient, periods) {
 
 async function restorePeriodStates(adminClient, updates) {
   for (const update of updates) {
-    const { error } = await adminClient
-      .from('periods')
-      .update({ state: update.from, deadline: null })
-      .eq('id', update.id);
+    const { error } = await withRetry(() =>
+      adminClient
+        .from('periods')
+        .update({ state: update.from, deadline: null })
+        .eq('id', update.id)
+    );
 
     if (error) {
       throw new Error(`Failed restoring period ${update.id} -> ${update.from}: ${error.message}`);
@@ -1116,7 +1120,13 @@ async function main() {
     });
   } finally {
     if (temporaryPeriodUpdates.length > 0) {
-      await restorePeriodStates(adminClient, temporaryPeriodUpdates);
+      try {
+        await restorePeriodStates(adminClient, temporaryPeriodUpdates);
+      } catch (restoreError) {
+        const message =
+          restoreError instanceof Error ? restoreError.message : String(restoreError);
+        console.warn(`Warning: failed to restore period states cleanly: ${message}`);
+      }
     }
   }
 

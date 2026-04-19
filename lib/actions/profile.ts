@@ -3,14 +3,32 @@
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 
+async function resolveCurrentUserId(
+  supabase: Awaited<ReturnType<typeof createClient>>
+): Promise<string | null> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (session?.user?.id) {
+    return session.user.id;
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  return user?.id ?? null;
+}
+
 /**
  * Update the current user's profile.
  */
 export async function updateProfile(formData: FormData) {
   const supabase = await createClient();
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: 'Not authenticated.' };
+  const userId = await resolveCurrentUserId(supabase);
+  if (!userId) return { error: 'Not authenticated.' };
 
   const fullName    = formData.get('full_name') as string;
   const college     = formData.get('college') as string;
@@ -26,7 +44,7 @@ export async function updateProfile(formData: FormData) {
       credentials: credentials ? JSON.parse(credentials) : [],
       updated_at:  new Date().toISOString(),
     })
-    .eq('id', user.id);
+    .eq('id', userId);
 
   if (error) return { error: error.message };
 
@@ -40,13 +58,13 @@ export async function updateProfile(formData: FormData) {
 export async function getCurrentProfile() {
   const supabase = await createClient();
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: 'Not authenticated.' };
+  const userId = await resolveCurrentUserId(supabase);
+  if (!userId) return { error: 'Not authenticated.' };
 
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
-    .eq('id', user.id)
+    .eq('id', userId)
     .single();
 
   if (error) return { error: error.message };

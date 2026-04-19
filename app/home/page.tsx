@@ -3,11 +3,10 @@ import { redirect } from 'next/navigation';
 import { TopNav } from '@/components/shared/TopNav';
 import { PeriodCard } from '@/components/shared/PeriodCard';
 import { Scale, XCircle, PenLine, PlusCircle, Vote } from 'lucide-react';
-import { getCurrentProfile } from '@/lib/actions/profile';
-import { getActiveSession } from '@/lib/actions/periods';
 import type { PeriodType, PeriodState } from '@/lib/types/database';
 import type { Status } from '@/components/shared/StatusBadge';
 import { RealtimeRefresh } from '@/components/shared/RealtimeRefresh';
+import { createClient } from '@/lib/supabase/server';
 
 // ─── Helpers to map DB types to UI props ─────────────────────────────
 
@@ -54,19 +53,73 @@ function mapPeriodStateToStatus(state: PeriodState): Status {
 // ─── Page (Async Server Component) ───────────────────────────────────
 
 export default async function HomePage() {
-  // Fetch data in parallel
-  const [profileResult, sessionResult] = await Promise.all([
-    getCurrentProfile(),
-    getActiveSession(),
+  const supabase = await createClient();
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  let user = session?.user ?? null;
+
+  if (!user) {
+    const {
+      data: { user: fetchedUser },
+    } = await supabase.auth.getUser();
+    user = fetchedUser;
+  }
+
+  if (!user) {
+    redirect('/login');
+  }
+
+  const [profileResult, activeSessionResult] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('id, full_name, college, committee, avatar_url')
+      .eq('id', user.id)
+      .single(),
+    supabase
+      .from('sessions')
+      .select(`
+        id,
+        name,
+        status,
+        periods (
+          id,
+          period_type,
+          state,
+          deadline,
+          sort_order
+        )
+      `)
+      .eq('status', 'active')
+      .order('updated_at', { ascending: false })
+      .maybeSingle(),
   ]);
 
-  // If not authenticated, redirect to login
   if (profileResult.error || !profileResult.data) {
     redirect('/login');
   }
 
   const profile = profileResult.data;
-  const sessionData = sessionResult.data;
+  const rawPeriods = (activeSessionResult.data?.periods ?? []) as Array<{
+    id: string;
+    period_type: PeriodType;
+    state: PeriodState;
+    sort_order: number;
+  }>;
+
+  const periodsForSession = [...rawPeriods].sort((left, right) => left.sort_order - right.sort_order);
+  const sessionData = activeSessionResult.data
+    ? {
+        session: {
+          id: activeSessionResult.data.id,
+          name: activeSessionResult.data.name,
+          status: activeSessionResult.data.status,
+        },
+        periods: periodsForSession,
+      }
+    : null;
 
   // Map DB periods to PeriodCard props
   const periods = (sessionData?.periods ?? []).map((p: { id: string; period_type: PeriodType; state: PeriodState }) => ({
