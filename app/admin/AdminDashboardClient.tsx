@@ -98,6 +98,8 @@ const TEMPLATE_PERIODS: AdminPeriod[] = [
   },
 ];
 
+const DEFAULT_PERIOD_TIMER_MINUTES = 10;
+
 function stateToChip(state: PeriodState) {
   switch (state) {
     case 'active':
@@ -133,6 +135,7 @@ export function AdminDashboardClient({ session, periods, totalMotions }: AdminDa
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [durationMinutes, setDurationMinutes] = useState<number>(10);
+  const [periodTimerMinutes, setPeriodTimerMinutes] = useState<Record<string, number>>({});
   const [feedback, setFeedback] = useState<string | null>(null);
 
   useRealtimeRefresh({
@@ -155,7 +158,11 @@ export function AdminDashboardClient({ session, periods, totalMotions }: AdminDa
     [periods]
   );
 
-  const handlePeriodUpdate = (periodId: string, status: 'OPEN' | 'CLOSED' | 'ACTIVE') => {
+  const handlePeriodUpdate = (
+    periodId: string,
+    status: 'OPEN' | 'CLOSED' | 'ACTIVE',
+    customMinutes?: number
+  ) => {
     if (!hasActiveSession) {
       setFeedback('Initialize convention flow first to activate period controls.');
       return;
@@ -164,14 +171,22 @@ export function AdminDashboardClient({ session, periods, totalMotions }: AdminDa
     setFeedback(null);
 
     startTransition(async () => {
-      const result = await updatePeriodStatus(periodId, status);
+      const result = await updatePeriodStatus(
+        periodId,
+        status,
+        status === 'ACTIVE' ? customMinutes : undefined
+      );
 
       if (result?.error) {
         setFeedback(result.error);
         return;
       }
 
-      setFeedback(`Period updated to ${status}.`);
+      if (status === 'ACTIVE' && customMinutes && customMinutes > 0) {
+        setFeedback(`Period updated to ${status} with a ${customMinutes}-minute timer.`);
+      } else {
+        setFeedback(`Period updated to ${status}.`);
+      }
       router.refresh();
     });
   };
@@ -325,6 +340,33 @@ export function AdminDashboardClient({ session, periods, totalMotions }: AdminDa
                         </span>
                       </div>
 
+                      <div className="flex flex-wrap items-end gap-3">
+                        <div className="w-full sm:w-auto">
+                          <label
+                            htmlFor={`period-timer-${period.id}`}
+                            className="block text-[11px] uppercase tracking-[0.18em] text-zinc-500 mb-2"
+                          >
+                            Period Timer (Minutes)
+                          </label>
+                          <input
+                            id={`period-timer-${period.id}`}
+                            type="number"
+                            min={1}
+                            max={720}
+                            value={periodTimerMinutes[period.id] ?? DEFAULT_PERIOD_TIMER_MINUTES}
+                            onChange={(event) => {
+                              const parsed = Number(event.target.value);
+                              setPeriodTimerMinutes((previous) => ({
+                                ...previous,
+                                [period.id]: Number.isFinite(parsed) ? parsed : DEFAULT_PERIOD_TIMER_MINUTES,
+                              }));
+                            }}
+                            disabled={isPending || !hasActiveSession}
+                            className="w-full sm:w-44 rounded-xl bg-zinc-950 border border-zinc-700 px-4 py-2 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-cyan-500/40 disabled:opacity-60"
+                          />
+                        </div>
+                      </div>
+
                       <div className="flex flex-wrap gap-2">
                         {reviewHref && (
                           <Link
@@ -350,7 +392,13 @@ export function AdminDashboardClient({ session, periods, totalMotions }: AdminDa
                         </button>
                         <button
                           type="button"
-                          onClick={() => handlePeriodUpdate(period.id, 'ACTIVE')}
+                          onClick={() =>
+                            handlePeriodUpdate(
+                              period.id,
+                              'ACTIVE',
+                              periodTimerMinutes[period.id] ?? DEFAULT_PERIOD_TIMER_MINUTES
+                            )
+                          }
                           disabled={isPending || !hasActiveSession}
                           className="px-4 py-2 rounded-xl border border-cyan-400/40 bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-100 text-sm font-semibold disabled:opacity-60"
                         >

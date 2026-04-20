@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { Lock } from 'lucide-react';
+import { Clock3, Lock } from 'lucide-react';
 import { StatusBadge, Status } from './StatusBadge';
 import { cn } from '@/lib/utils';
 
@@ -9,9 +9,10 @@ interface PeriodCardProps {
   icon: React.ElementType;
   status: Status;
   href: string;
+  timerHint?: string;
 }
 
-export function PeriodCard({ title, icon: Icon, status, href }: PeriodCardProps) {
+export function PeriodCard({ title, icon: Icon, status, href, timerHint }: PeriodCardProps) {
   const isClosed = status === 'CLOSED';
   const Wrapper = isClosed ? 'div' : Link;
 
@@ -39,6 +40,13 @@ export function PeriodCard({ title, icon: Icon, status, href }: PeriodCardProps)
       </h3>
       
       <StatusBadge status={status} />
+
+      {timerHint && (
+        <div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-ccd-accent/25 bg-white/70 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-ccd-text-sec">
+          <Clock3 className="h-3.5 w-3.5" />
+          <span>{timerHint}</span>
+        </div>
+      )}
 
       {isClosed && (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-ccd-surface/90 p-3 rounded-full shadow-sm backdrop-blur-md">

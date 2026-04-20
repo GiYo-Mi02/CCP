@@ -4,8 +4,10 @@ import { useMemo, useState, useTransition } from 'react';
 import { Check, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { TopNav } from '@/components/shared/TopNav';
+import { Timer } from '@/components/shared/Timer';
 import { submitElectionVotes } from '@/lib/actions/elections';
 import { useRealtimeRefresh } from '@/hooks/use-realtime-refresh';
+import type { PeriodState } from '@/lib/types/database';
 
 interface CandidateOption {
   id: string;
@@ -24,6 +26,8 @@ interface PlenaryElectionClientProps {
   delegateName: string;
   delegateAvatarUrl?: string;
   sessionName?: string;
+  periodState: PeriodState;
+  deadline: string | null;
   electionId: string;
   electionName: string;
   hasSubmitted: boolean;
@@ -34,6 +38,8 @@ export function PlenaryElectionClient({
   delegateName,
   delegateAvatarUrl,
   sessionName,
+  periodState,
+  deadline,
   electionId,
   electionName,
   hasSubmitted,
@@ -84,6 +90,7 @@ export function PlenaryElectionClient({
     .filter((position) => position.candidates.length > 0)
     .map((position) => position.id);
   const allRequiredSelected = requiredPositionIds.every((positionId) => selections[positionId]);
+  const showElectionTimer = periodState === 'active' || periodState === 'votation';
 
   const handleSelect = (positionId: string, candidateId: string) => {
     setSelections((prev) => ({ ...prev, [positionId]: candidateId }));
@@ -113,6 +120,18 @@ export function PlenaryElectionClient({
         <div className="text-center mb-10">
           <h1 className="font-serif text-4xl sm:text-5xl font-bold text-ccd-text mb-4">Plenary & Committee Elections</h1>
           <p className="text-ccd-text-sec max-w-2xl mx-auto">{electionName}</p>
+          <div className="mt-5 flex justify-center">
+            {showElectionTimer ? (
+              <div className="inline-flex flex-wrap items-center justify-center gap-3 rounded-2xl border border-ccd-accent/30 bg-white px-4 py-3 shadow-sm">
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-ccd-text-sec">Timer Status</span>
+                <Timer targetDate={deadline ? new Date(deadline) : null} />
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-2 rounded-2xl border border-ccd-danger/30 bg-ccd-danger/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-ccd-danger">
+                Timer Closed
+              </div>
+            )}
+          </div>
         </div>
 
         {feedback && <p className="max-w-3xl mx-auto mb-6 text-sm bg-white border border-ccd-accent/30 rounded-xl px-4 py-3">{feedback}</p>}

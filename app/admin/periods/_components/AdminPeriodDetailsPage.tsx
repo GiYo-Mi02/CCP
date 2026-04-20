@@ -20,6 +20,19 @@ function titleCase(value: string) {
     .join(' ');
 }
 
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+    timeZone: 'Asia/Manila',
+  }).format(new Date(value));
+}
+
 function VoteList({
   label,
   items,
@@ -73,7 +86,7 @@ export function AdminPeriodDetailsPage({
             <p className="text-zinc-400 mt-2 max-w-3xl">{summary}</p>
             <p className="text-zinc-500 text-sm mt-3">
               Session: {sessionName} | State: {titleCase(state)}
-              {deadline ? ` | Deadline: ${new Date(deadline).toLocaleString()}` : ''}
+              {deadline ? ` | Deadline: ${formatDateTime(deadline)} GMT+8` : ''}
             </p>
           </div>
 
@@ -110,7 +123,7 @@ export function AdminPeriodDetailsPage({
                         {' | '}
                         {motion.author?.committee ?? 'No committee'}
                         {' | '}
-                        {new Date(motion.created_at).toLocaleString()}
+                        {formatDateTime(motion.created_at)} GMT+8
                       </p>
                     </div>
 

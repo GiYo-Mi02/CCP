@@ -7,14 +7,6 @@ async function resolveCurrentUserId(
   supabase: Awaited<ReturnType<typeof createClient>>
 ): Promise<string | null> {
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  if (session?.user?.id) {
-    return session.user.id;
-  }
-
-  const {
     data: { user },
   } = await supabase.auth.getUser();
 

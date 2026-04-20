@@ -146,6 +146,18 @@ export function QuickMotionClient({
         <div className="text-center mb-8">
           <h1 className="font-serif text-4xl sm:text-5xl font-bold text-ccd-text mb-2">Quick Motion Votation</h1>
           <p className="text-ccd-text-sec uppercase tracking-widest text-xs font-bold">Live Database Results</p>
+          <div className="mt-5 flex justify-center">
+            {showSubmission || showVoting ? (
+              <div className="inline-flex flex-wrap items-center justify-center gap-3 rounded-2xl border border-ccd-accent/30 bg-white px-4 py-3 shadow-sm">
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-ccd-text-sec">Timer Status</span>
+                <Timer targetDate={deadline ? new Date(deadline) : null} />
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-2 rounded-2xl border border-ccd-danger/30 bg-ccd-danger/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-ccd-danger">
+                Timer Closed
+              </div>
+            )}
+          </div>
         </div>
 
         {feedback && <p className="mb-6 text-sm bg-white border border-ccd-accent/30 rounded-xl px-4 py-3">{feedback}</p>}

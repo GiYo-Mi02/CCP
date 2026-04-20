@@ -97,11 +97,7 @@ export function useRealtimeRefresh({
       );
     }
 
-    // Safety fallback: keep low-frequency polling active so UI stays fresh
-    // even if realtime subscriptions are healthy-but-silent.
-    startFallbackPolling();
-
-    // If the channel does not subscribe in time, keep fallback active.
+    // If the channel does not subscribe in time, enable fallback polling.
     subscribeWatchdog = setTimeout(() => {
       startFallbackPolling();
     }, 5000);
@@ -112,6 +108,7 @@ export function useRealtimeRefresh({
           clearTimeout(subscribeWatchdog);
           subscribeWatchdog = null;
         }
+        stopFallbackPolling();
       }
 
       if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR' || status === 'CLOSED') {

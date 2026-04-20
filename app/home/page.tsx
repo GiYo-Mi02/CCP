@@ -50,23 +50,42 @@ function mapPeriodStateToStatus(state: PeriodState): Status {
   }
 }
 
+function getPeriodTimerHint(state: PeriodState, deadline: string | null) {
+  if (state !== 'active' && state !== 'votation') {
+    return 'Timer inactive';
+  }
+
+  if (!deadline) {
+    return 'No timer set';
+  }
+
+  const date = new Date(deadline);
+  if (Number.isNaN(date.getTime())) {
+    return 'No timer set';
+  }
+
+  if (date.getTime() <= Date.now()) {
+    return 'Timer elapsed';
+  }
+
+  const timeLabel = new Intl.DateTimeFormat('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'Asia/Manila',
+  }).format(date);
+
+  return `Ends ${timeLabel} GMT+8`;
+}
+
 // ─── Page (Async Server Component) ───────────────────────────────────
 
 export default async function HomePage() {
   const supabase = await createClient();
 
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  let user = session?.user ?? null;
-
-  if (!user) {
-    const {
-      data: { user: fetchedUser },
-    } = await supabase.auth.getUser();
-    user = fetchedUser;
-  }
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     redirect('/login');
@@ -106,6 +125,7 @@ export default async function HomePage() {
     id: string;
     period_type: PeriodType;
     state: PeriodState;
+    deadline: string | null;
     sort_order: number;
   }>;
 
@@ -122,13 +142,16 @@ export default async function HomePage() {
     : null;
 
   // Map DB periods to PeriodCard props
-  const periods = (sessionData?.periods ?? []).map((p: { id: string; period_type: PeriodType; state: PeriodState }) => ({
-    id:     p.id,
-    title:  PERIOD_TITLE_MAP[p.period_type] ?? p.period_type,
-    icon:   PERIOD_ICON_MAP[p.period_type]  ?? Vote,
-    status: mapPeriodStateToStatus(p.state),
-    href:   PERIOD_HREF_MAP[p.period_type]  ?? '#',
-  }));
+  const periods = (sessionData?.periods ?? []).map(
+    (p: { id: string; period_type: PeriodType; state: PeriodState; deadline: string | null }) => ({
+      id: p.id,
+      title: PERIOD_TITLE_MAP[p.period_type] ?? p.period_type,
+      icon: PERIOD_ICON_MAP[p.period_type] ?? Vote,
+      status: mapPeriodStateToStatus(p.state),
+      href: PERIOD_HREF_MAP[p.period_type] ?? '#',
+      timerHint: getPeriodTimerHint(p.state, p.deadline),
+    })
+  );
 
   return (
     <div className="min-h-screen bg-ccd-bg flex flex-col relative">
@@ -149,26 +172,28 @@ export default async function HomePage() {
         {periods.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-[32px] w-full max-w-[900px] mx-auto">
             {/* Top Row (up to 3) */}
-            {periods.slice(0, 3).map((p: { id: string; title: string; icon: React.ElementType; status: Status; href: string }) => (
+            {periods.slice(0, 3).map((p: { id: string; title: string; icon: React.ElementType; status: Status; href: string; timerHint: string }) => (
               <PeriodCard
                 key={p.id}
                 title={p.title}
                 icon={p.icon}
                 status={p.status}
                 href={p.href}
+                timerHint={p.timerHint}
               />
             ))}
             
             {/* Bottom Row (remaining, centered) */}
             {periods.length > 3 && (
               <div className="md:col-span-3 flex flex-col md:flex-row justify-center gap-[32px]">
-                {periods.slice(3).map((p: { id: string; title: string; icon: React.ElementType; status: Status; href: string }) => (
+                {periods.slice(3).map((p: { id: string; title: string; icon: React.ElementType; status: Status; href: string; timerHint: string }) => (
                   <div key={p.id} className="w-full md:w-[calc(33.333%-21px)]">
                     <PeriodCard
                       title={p.title}
                       icon={p.icon}
                       status={p.status}
                       href={p.href}
+                      timerHint={p.timerHint}
                     />
                   </div>
                 ))}

@@ -414,10 +414,20 @@ export async function initializeConventionFlow(sessionName?: string) {
  */
 export async function updatePeriodStatus(
   periodId: string,
-  status: 'OPEN' | 'CLOSED' | 'ACTIVE'
+  status: 'OPEN' | 'CLOSED' | 'ACTIVE',
+  durationInMinutes?: number
 ) {
   if (!periodId) {
     return { error: 'Period ID is required.' };
+  }
+
+  let clampedMinutes: number | null = null;
+  if (durationInMinutes !== undefined) {
+    if (!Number.isFinite(durationInMinutes) || durationInMinutes <= 0) {
+      return { error: 'Timer duration must be a positive number.' };
+    }
+
+    clampedMinutes = Math.min(durationInMinutes, 720);
   }
 
   const adminCheck = await requireAdmin();
@@ -439,12 +449,17 @@ export async function updatePeriodStatus(
 
   const nextState = mapAdminStatusToPeriodState(status);
 
-  const updatePayload: { state: PeriodState; deadline?: string | null } = {
+  const updatePayload: { state: PeriodState; updated_at: string; deadline?: string | null } = {
     state: nextState,
+    updated_at: new Date().toISOString(),
   };
 
   if (status === 'OPEN' || status === 'CLOSED') {
     updatePayload.deadline = null;
+  } else if (status === 'ACTIVE' && clampedMinutes !== null) {
+    const deadline = new Date();
+    deadline.setMinutes(deadline.getMinutes() + clampedMinutes);
+    updatePayload.deadline = deadline.toISOString();
   }
 
   const { error } = await supabase
