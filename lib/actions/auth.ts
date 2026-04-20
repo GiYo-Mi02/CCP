@@ -5,11 +5,27 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 
+function isLocalHostLike(value: string) {
+  if (/^localhost(?::\d+)?$/i.test(value)) return true;
+  if (/^127\.0\.0\.1(?::\d+)?$/.test(value)) return true;
+  if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}(?::\d+)?$/.test(value)) return true;
+  if (/^192\.168\.\d{1,3}\.\d{1,3}(?::\d+)?$/.test(value)) return true;
+  if (/^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}(?::\d+)?$/.test(value)) return true;
+  return false;
+}
+
 function normalizeOrigin(value: string | null | undefined) {
   if (!value) return null;
 
+  const candidate = value.split(',')[0].trim();
+  if (!candidate) return null;
+
+  const normalizedInput = /^https?:\/\//i.test(candidate)
+    ? candidate
+    : `${isLocalHostLike(candidate) ? 'http' : 'https'}://${candidate}`;
+
   try {
-    return new URL(value).origin;
+    return new URL(normalizedInput).origin;
   } catch {
     return null;
   }
@@ -17,13 +33,22 @@ function normalizeOrigin(value: string | null | undefined) {
 
 async function resolveOAuthOrigin() {
   const headerStore = await headers();
+  const originHeader = normalizeOrigin(headerStore.get('origin'));
+
+  if (originHeader) {
+    return originHeader;
+  }
+
   const forwardedHost = headerStore.get('x-forwarded-host');
   const host = forwardedHost ?? headerStore.get('host');
   const forwardedProto = headerStore.get('x-forwarded-proto');
   const protocol = (forwardedProto ?? 'http').split(',')[0].trim() || 'http';
 
   if (host) {
-    return `${protocol}://${host}`;
+    const hostOrigin = normalizeOrigin(`${protocol}://${host}`);
+    if (hostOrigin) {
+      return hostOrigin;
+    }
   }
 
   const configuredOrigin = normalizeOrigin(process.env.NEXT_PUBLIC_APP_URL);
