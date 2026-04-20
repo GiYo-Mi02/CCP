@@ -26,6 +26,8 @@ export interface Profile {
   credentials: string[];
   avatar_url: string | null;
   role: UserRole;
+  privacy_consented_at: string | null;
+  privacy_consent_version: string | null;
   created_at: string;
   updated_at: string;
 }

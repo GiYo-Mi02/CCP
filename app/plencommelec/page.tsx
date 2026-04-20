@@ -27,6 +27,28 @@ export default async function PlenaryElectionsPage() {
     );
   }
 
+  const electionPeriod = sessionData.periods.find((period) => period.period_type === 'election');
+
+  if (!electionPeriod) {
+    return (
+      <div className="min-h-screen bg-ccd-bg flex items-center justify-center px-6">
+        <div className="max-w-xl bg-white rounded-2xl border border-ccd-accent/20 p-8 text-center">
+          <h1 className="font-serif text-3xl text-ccd-text">Election Period Not Configured</h1>
+          <p className="text-ccd-text-sec mt-2">Ask an admin to initialize the convention flow.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const canAccessPeriod =
+    electionPeriod.state === 'pending' ||
+    electionPeriod.state === 'active' ||
+    electionPeriod.state === 'votation';
+
+  if (!canAccessPeriod) {
+    redirect('/home');
+  }
+
   const electionResult = await getActiveElection(sessionData.session.id);
 
   if (electionResult.error || !electionResult.data) {
@@ -39,8 +61,6 @@ export default async function PlenaryElectionsPage() {
       </div>
     );
   }
-
-  const electionPeriod = sessionData.periods.find((period) => period.period_type === 'election');
 
   const hasVoted = await hasUserVotedInElection(electionResult.data.election.id);
 

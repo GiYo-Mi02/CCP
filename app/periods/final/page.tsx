@@ -41,6 +41,11 @@ export default async function FinalVotationPage() {
     );
   }
 
+  const canAccessPeriod = period.state === 'pending' || period.state === 'active' || period.state === 'votation';
+  if (!canAccessPeriod) {
+    redirect('/home');
+  }
+
   const motionsResult = await getMotionsByPeriod(period.id);
   const motions = motionsResult.data ?? [];
 

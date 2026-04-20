@@ -58,6 +58,11 @@ export default async function QuickMotionPage() {
     );
   }
 
+  const canAccessPeriod = period.state === 'pending' || period.state === 'active' || period.state === 'votation';
+  if (!canAccessPeriod) {
+    redirect('/home');
+  }
+
   const motionsResult = await getMotionsWithVotesByPeriod(period.id);
   const rawMotions = (motionsResult.data ?? []) as QuickMotionWithVotesRow[];
   const userId = profileResult.data.id;

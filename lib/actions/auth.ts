@@ -5,6 +5,20 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 
+const PRIVACY_CONSENT_VERSION = 'ra10173-v1';
+
+function isUmakEmail(email: string | null | undefined) {
+  if (!email) return false;
+  return email.toLowerCase().endsWith('@umak.edu.ph');
+}
+
+function sanitizeNextPath(nextPath: string | null | undefined, fallback = '/home') {
+  if (!nextPath) return fallback;
+  if (!nextPath.startsWith('/')) return fallback;
+  if (nextPath.startsWith('//')) return fallback;
+  return nextPath;
+}
+
 function isLocalHostLike(value: string) {
   if (/^localhost(?::\d+)?$/i.test(value)) return true;
   if (/^127\.0\.0\.1(?::\d+)?$/.test(value)) return true;
@@ -85,11 +99,24 @@ export async function loginWithEmail(formData: FormData) {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, privacy_consented_at')
     .eq('id', user.id)
-    .single();
+    .maybeSingle();
 
-  if (profile?.role === 'admin') {
+  const role = profile?.role ?? 'delegate';
+
+  if (role !== 'admin' && !isUmakEmail(user.email)) {
+    await supabase.auth.signOut();
+    return { error: 'Please use your official UMak email address to access CCP.' };
+  }
+
+  const nextPath = role === 'admin' ? '/admin' : '/home';
+
+  if (!profile?.privacy_consented_at) {
+    redirect(`/consent?next=${encodeURIComponent(nextPath)}`);
+  }
+
+  if (role === 'admin') {
     redirect('/admin');
   }
 
@@ -116,6 +143,57 @@ export async function loginWithGoogle() {
   }
 
   redirect(data.url);
+}
+
+/**
+ * Records first-login Data Privacy consent and redirects to the intended page.
+ */
+export async function acceptDataPrivacyConsent(formData: FormData) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: 'Please sign in first.' };
+  }
+
+  const agreedRaw = String(formData.get('agree') ?? '').toLowerCase();
+  const agreed = agreedRaw === 'true' || agreedRaw === 'on' || agreedRaw === '1';
+
+  if (!agreed) {
+    return { error: 'You must agree to the Data Privacy Consent to continue.' };
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  const role = profile?.role ?? 'delegate';
+
+  if (role !== 'admin' && !isUmakEmail(user.email)) {
+    await supabase.auth.signOut();
+    return { error: 'Only official UMak email accounts are allowed for delegate access.' };
+  }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      privacy_consented_at: new Date().toISOString(),
+      privacy_consent_version: PRIVACY_CONSENT_VERSION,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', user.id);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  const requestedNextPath = sanitizeNextPath(formData.get('next') as string | null, role === 'admin' ? '/admin' : '/home');
+  redirect(requestedNextPath);
 }
 
 /**

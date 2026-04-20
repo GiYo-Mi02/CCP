@@ -1,11 +1,26 @@
 'use client';
 import React from 'react';
+import { useSearchParams } from 'next/navigation';
 import { loginWithEmail, loginWithGoogle } from '@/lib/actions/auth';
 
 export default function LoginPage() {
+  const searchParams = useSearchParams();
   const [error, setError] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    const errorCode = searchParams.get('error');
+
+    if (errorCode === 'umak_email_required') {
+      setError('Only official UMak email accounts are allowed for delegate access.');
+      return;
+    }
+
+    if (errorCode === 'auth_callback_failed') {
+      setError('Authentication callback failed. Please try signing in again.');
+    }
+  }, [searchParams]);
 
   const handleEmailLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

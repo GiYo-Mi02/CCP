@@ -2,6 +2,18 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
+function isUmakEmail(email: string | null | undefined) {
+  if (!email) return false;
+  return email.toLowerCase().endsWith('@umak.edu.ph');
+}
+
+function sanitizeNextPath(nextPath: string | null | undefined, fallback = '/home') {
+  if (!nextPath) return fallback;
+  if (!nextPath.startsWith('/')) return fallback;
+  if (nextPath.startsWith('//')) return fallback;
+  return nextPath;
+}
+
 /**
  * OAuth Callback Handler
  *
@@ -13,7 +25,7 @@ import { cookies } from 'next/headers';
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
-  const next = searchParams.get('next') ?? '/home';
+  const next = sanitizeNextPath(searchParams.get('next'), '/home');
 
   if (code) {
     const cookieStore = await cookies();
@@ -42,21 +54,35 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error) {
-      // Check if user is admin to redirect appropriately
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
       if (user) {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('role')
+          .select('role, privacy_consented_at')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
 
-        if (profile?.role === 'admin') {
-          return NextResponse.redirect(`${origin}/admin`);
+        const role = profile?.role ?? 'delegate';
+        const targetPath = role === 'admin' ? '/admin' : next;
+
+        if (role !== 'admin' && !isUmakEmail(user.email)) {
+          await supabase.auth.signOut();
+          return NextResponse.redirect(`${origin}/login?error=umak_email_required`);
         }
+
+        if (!profile?.privacy_consented_at) {
+          const consentUrl = new URL('/consent', origin);
+          consentUrl.searchParams.set('next', targetPath);
+          return NextResponse.redirect(consentUrl.toString());
+        }
+
+        return NextResponse.redirect(`${origin}${targetPath}`);
       }
 
-      return NextResponse.redirect(`${origin}${next}`);
+      return NextResponse.redirect(`${origin}/login?error=auth_callback_failed`);
     }
   }
 
