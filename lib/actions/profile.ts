@@ -24,7 +24,6 @@ export async function updateProfile(formData: FormData) {
 
   const fullName    = formData.get('full_name') as string;
   const college     = formData.get('college') as string;
-  const committee   = formData.get('committee') as string;
   const credentials = formData.get('credentials') as string;
 
   const { error } = await supabase
@@ -32,7 +31,6 @@ export async function updateProfile(formData: FormData) {
     .update({
       full_name:   fullName,
       college:     college,
-      committee:   committee,
       credentials: credentials ? JSON.parse(credentials) : [],
       updated_at:  new Date().toISOString(),
     })

@@ -44,6 +44,9 @@ export default async function AdminElectionCandidatesPage() {
           <Link href="/admin/er" className="inline-block px-4 py-2 rounded-lg border border-zinc-700 hover:bg-zinc-900">
             Open ER Monitoring
           </Link>
+          <Link href="/admin/elections/results" className="inline-block px-4 py-2 rounded-lg border border-cyan-600/40 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20">
+            Election Results Board
+          </Link>
         </div>
       </div>
     );

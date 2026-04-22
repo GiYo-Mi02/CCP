@@ -1,9 +1,8 @@
 import { redirect } from 'next/navigation';
 import { getCurrentProfile } from '@/lib/actions/profile';
 import { getActiveSession } from '@/lib/actions/periods';
-import { getMotionsByPeriod } from '@/lib/actions/motions';
-import { getUserVotesByMotionIds, getVoteAggregatesByMotionIds } from '@/lib/actions/votes';
-import { PeriodPageClient } from '../_components/PeriodPageClient';
+import { getFinalVotationSummary } from '@/lib/actions/final-votation';
+import { FinalVotationClient } from './FinalVotationClient';
 
 export default async function FinalVotationPage() {
   const [profileResult, sessionResult] = await Promise.all([
@@ -46,41 +45,27 @@ export default async function FinalVotationPage() {
     redirect('/home');
   }
 
-  const motionsResult = await getMotionsByPeriod(period.id);
-  const motions = motionsResult.data ?? [];
+  const summaryResult = await getFinalVotationSummary(period.id, profileResult.data.id);
 
-  const motionIds = motions.map((motion) => motion.id);
-
-  const [aggregatesResult, userVotesResult] = await Promise.all([
-    getVoteAggregatesByMotionIds(motionIds),
-    getUserVotesByMotionIds(motionIds),
-  ]);
+  const summary = summaryResult.data ?? {
+    paper: null,
+    motionId: null,
+    aggregate: { approve: 0, reject: 0, abstain: 0, total: 0 },
+    userVote: null,
+  };
 
   return (
-    <PeriodPageClient
+    <FinalVotationClient
       delegateName={profileResult.data.full_name || 'Delegate'}
       delegateAvatarUrl={profileResult.data.avatar_url ?? undefined}
       sessionName={sessionData.session.name}
       periodId={period.id}
       periodState={period.state}
       deadline={period.deadline}
-      periodTitle="Final Votation"
-      periodDescription="Cast the final vote and review the complete results for motions moved to final deliberation."
-      motionType="quick_motion"
-      motions={motions.map((motion) => ({
-        id: motion.id,
-        article_ref: motion.article_ref,
-        section_ref: motion.section_ref,
-        original_text: motion.original_text,
-        proposed_text: motion.proposed_text,
-        justification: motion.justification,
-        status: motion.status,
-        author_name: motion.author?.full_name,
-        author_committee: motion.author?.committee,
-      }))}
-      voteAggregates={aggregatesResult.data ?? []}
-      userVotes={userVotesResult.data ?? []}
-      allowSubmission={false}
+      motionId={summary.motionId}
+      paper={summary.paper}
+      aggregate={summary.aggregate}
+      userVote={summary.userVote}
     />
   );
 }

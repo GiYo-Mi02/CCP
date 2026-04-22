@@ -15,6 +15,7 @@ interface DelegateProfile {
   college: string;
   committee: string;
   credentials: string[];
+  electedPositions: string[];
   avatarUrl?: string;
 }
 
@@ -132,11 +133,7 @@ export function DashboardClient({ profile, contributions }: DashboardClientProps
                     {/* Committee */}
                     <div className="flex flex-col text-sm mt-4">
                       <span className="uppercase tracking-widest text-[10px] font-bold text-ccd-text-sec mb-1">Committee</span>
-                      {isEditing ? (
-                        <input name="committee" type="text" defaultValue={profile.committee} className="bg-ccd-surface/20 border-b border-ccd-active focus:outline-none px-1 text-center" />
-                      ) : (
-                        <span className="font-medium text-ccd-text">{profile.committee || '—'}</span>
-                      )}
+                      <span className="font-medium text-ccd-text">{profile.committee || '—'}</span>
                     </div>
                   </div>
                 </div>
@@ -175,6 +172,24 @@ export function DashboardClient({ profile, contributions }: DashboardClientProps
                       </div>
                     )}
                   </div>
+                </div>
+
+                <div className="pt-8 text-center sm:text-left border-t border-ccd-accent/20 mt-8">
+                  <h3 className="font-serif text-xl font-bold text-ccd-text mb-4">Elected Positions</h3>
+                  {profile.electedPositions.length === 0 ? (
+                    <p className="text-sm text-ccd-text-sec">No elected position assigned yet.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
+                      {profile.electedPositions.map((position) => (
+                        <span
+                          key={position}
+                          className="px-3 py-1.5 bg-ccd-active/10 rounded-full text-xs font-semibold text-ccd-text border border-ccd-active/30"
+                        >
+                          {position}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {error && (

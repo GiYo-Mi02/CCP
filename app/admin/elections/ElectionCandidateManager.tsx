@@ -236,6 +236,9 @@ export function ElectionCandidateManager({
             <Link href="/admin" className="px-4 py-2 rounded-lg border border-zinc-700 hover:bg-zinc-900 text-sm">
               Back to Admin
             </Link>
+            <Link href="/admin/elections/results" className="px-4 py-2 rounded-lg border border-cyan-600/40 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20 text-sm">
+              Election Results Board
+            </Link>
             <Link href="/admin/er" className="px-4 py-2 rounded-lg border border-zinc-700 hover:bg-zinc-900 text-sm">
               Open ER Monitoring
             </Link>

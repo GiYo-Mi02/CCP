@@ -21,7 +21,7 @@ export function TopNav({ sessionName, delegateName, delegateAvatarUrl, leftCompo
         <div className="flex justify-start items-center gap-4 flex-1">
           <Link href="/home" className="flex items-center gap-2 group">
             <span className="font-serif text-[28px] font-bold text-ccd-text tracking-[-0.5px] group-hover:text-ccd-active transition-colors">
-              CCP
+              Constitutional Convention Platform
             </span>
           </Link>
           {leftComponent}

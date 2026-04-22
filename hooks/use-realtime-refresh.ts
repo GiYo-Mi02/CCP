@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createBrowserSupabase } from '@/lib/supabase/client';
 
@@ -20,29 +20,43 @@ interface UseRealtimeRefreshOptions {
 
 /**
  * Subscribes to Supabase Realtime table changes and refreshes the current route.
+ *
+ * Uses refs for `router` and timing values to keep the effect dependency list
+ * stable and prevent subscribe/unsubscribe loops that flood the terminal.
  */
 export function useRealtimeRefresh({
   channelName,
   tables,
   enabled = true,
-  throttleMs = 400,
-  fallbackPollingMs = 12000,
+  throttleMs = 800,
+  fallbackPollingMs = 30000,
 }: UseRealtimeRefreshOptions) {
   const router = useRouter();
 
-  const normalized = useMemo(
-    () =>
-      tables
-        .filter((subscription) => subscription.table)
-        .map((subscription) => ({
-          table: subscription.table,
-          event: subscription.event ?? '*',
-          filter: subscription.filter ?? null,
-        })),
-    [tables]
-  );
+  // Keep router in a ref so it never causes effect re-runs.
+  const routerRef = useRef(router);
+  routerRef.current = router;
 
-  const signature = useMemo(() => JSON.stringify(normalized), [normalized]);
+  // Keep timing values in refs to avoid effect churn.
+  const throttleMsRef = useRef(throttleMs);
+  throttleMsRef.current = throttleMs;
+
+  const fallbackPollingMsRef = useRef(fallbackPollingMs);
+  fallbackPollingMsRef.current = fallbackPollingMs;
+
+  // Build a stable JSON signature from the tables config.
+  // Even though `tables` is a new array reference each render, the
+  // stringified output will be identical so the effect won't re-fire.
+  const signature = useMemo(() => {
+    const normalized = tables
+      .filter((s) => s.table)
+      .map((s) => ({
+        table: s.table,
+        event: s.event ?? '*',
+        filter: s.filter ?? null,
+      }));
+    return JSON.stringify(normalized);
+  }, [tables]);
 
   useEffect(() => {
     const subscriptions = JSON.parse(signature) as Array<{
@@ -66,16 +80,17 @@ export function useRealtimeRefresh({
 
       refreshTimeout = setTimeout(() => {
         refreshTimeout = null;
-        router.refresh();
-      }, throttleMs);
+        routerRef.current.refresh();
+      }, throttleMsRef.current);
     };
 
     const startFallbackPolling = () => {
-      if (fallbackPollingMs <= 0 || fallbackInterval) return;
+      const ms = fallbackPollingMsRef.current;
+      if (ms <= 0 || fallbackInterval) return;
 
       fallbackInterval = setInterval(() => {
-        router.refresh();
-      }, fallbackPollingMs);
+        routerRef.current.refresh();
+      }, ms);
     };
 
     const stopFallbackPolling = () => {
@@ -126,5 +141,8 @@ export function useRealtimeRefresh({
       stopFallbackPolling();
       void supabase.removeChannel(channel);
     };
-  }, [channelName, enabled, router, signature, throttleMs, fallbackPollingMs]);
+    // Only re-subscribe when the channel name, enabled flag, or table
+    // configuration actually changes — NOT on every render.
+  }, [channelName, enabled, signature]);
 }
+

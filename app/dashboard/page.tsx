@@ -45,6 +45,7 @@ export default async function DashboardPage() {
         college:     profile.college || '',
         committee:   profile.committee || '',
         credentials: profile.credentials ?? [],
+        electedPositions: profile.elected_positions ?? [],
         avatarUrl:   profile.avatar_url ?? undefined,
       }}
       contributions={contributions}

@@ -24,6 +24,7 @@ export interface Profile {
   college: string;
   committee: string;
   credentials: string[];
+  elected_positions: string[];
   avatar_url: string | null;
   role: UserRole;
   privacy_consented_at: string | null;
@@ -101,6 +102,17 @@ export interface ElectionVote {
   position_id: string;
   candidate_id: string;
   cast_at: string;
+}
+
+export interface FinalVotationPaper {
+  id: string;
+  period_id: string;
+  file_name: string;
+  mime_type: string;
+  pdf_base64: string;
+  uploaded_by: string;
+  uploaded_at: string;
+  updated_at: string;
 }
 
 // ─── RPC Return Types ────────────────────────────────────────────────
@@ -263,6 +275,27 @@ export interface Database {
             columns: ['candidate_id'];
             isOneToOne: false;
             referencedRelation: 'candidates';
+            referencedColumns: ['id'];
+          }
+        ];
+      };
+      final_votation_papers: {
+        Row: FinalVotationPaper;
+        Insert: Omit<FinalVotationPaper, 'id' | 'uploaded_at' | 'updated_at'> & { id?: string; uploaded_at?: string; updated_at?: string };
+        Update: Partial<FinalVotationPaper>;
+        Relationships: [
+          {
+            foreignKeyName: 'final_votation_papers_period_id_fkey';
+            columns: ['period_id'];
+            isOneToOne: true;
+            referencedRelation: 'periods';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'final_votation_papers_uploaded_by_fkey';
+            columns: ['uploaded_by'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
             referencedColumns: ['id'];
           }
         ];

@@ -170,7 +170,7 @@ export function QuickMotionClient({
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <section className="lg:col-span-7 bg-white rounded-3xl border border-ccd-accent/20 p-6 sm:p-8">
               <div className="h-[280px] w-full relative">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <PieChart>
                     <Pie
                       data={chartData}

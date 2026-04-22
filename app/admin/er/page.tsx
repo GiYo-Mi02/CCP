@@ -44,6 +44,20 @@ function toAdminReviewRoute(periodType: string) {
   }
 }
 
+function toScopeName(scope: string) {
+  const normalized = scope.trim().toLowerCase();
+
+  if (normalized === 'plenary') {
+    return 'Plenary';
+  }
+
+  if (normalized === 'committee') {
+    return 'Committee (Any)';
+  }
+
+  return scope;
+}
+
 export default async function AdminERPage() {
   const supabase = await createClient();
 
@@ -107,6 +121,20 @@ export default async function AdminERPage() {
     electionResult.data?.election?.id
       ? await getElectionVoteSummary(electionResult.data.election.id)
       : { data: [] as Array<Record<string, unknown>> };
+
+  const scopeVoteMap = new Map<string, number>();
+  for (const position of (electionSummary.data ?? []) as Array<Record<string, unknown>>) {
+    const scope = String(position.scope ?? 'committee');
+    const candidates = (position.candidates ?? []) as Array<Record<string, unknown>>;
+    const positionVotes = candidates.reduce((sum, candidate) => sum + Number(candidate.vote_count ?? 0), 0);
+    scopeVoteMap.set(scope, (scopeVoteMap.get(scope) ?? 0) + positionVotes);
+  }
+
+  const plenaryVoteCount = scopeVoteMap.get('plenary') ?? 0;
+  const committeeEntries = Array.from(scopeVoteMap.entries())
+    .filter(([scope]) => scope !== 'plenary')
+    .sort(([scopeA], [scopeB]) => scopeA.localeCompare(scopeB));
+  const committeeVoteCount = committeeEntries.reduce((sum, [, votes]) => sum + votes, 0);
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 px-4 sm:px-8 lg:px-12 py-10">
@@ -208,18 +236,53 @@ export default async function AdminERPage() {
         <section className="mt-8 rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="font-serif text-2xl">Election Monitoring</h2>
-            <Link
-              href="/admin/elections"
-              className="px-3 py-2 rounded-lg border border-zinc-700 text-zinc-200 hover:bg-zinc-800 text-xs uppercase tracking-[0.12em]"
-            >
-              Open Candidate Manager
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href="/admin/elections"
+                className="px-3 py-2 rounded-lg border border-zinc-700 text-zinc-200 hover:bg-zinc-800 text-xs uppercase tracking-[0.12em]"
+              >
+                Open Candidate Manager
+              </Link>
+              <Link
+                href="/admin/elections/results"
+                className="px-3 py-2 rounded-lg border border-cyan-600/40 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20 text-xs uppercase tracking-[0.12em]"
+              >
+                Open Election Results Board
+              </Link>
+            </div>
           </div>
           {!electionResult.data ? (
             <p className="text-zinc-500 mt-3">No active election configured.</p>
           ) : (
             <>
               <p className="text-zinc-400 mt-1">{electionResult.data.election.name}</p>
+
+              <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-950/60 p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Votation Count Summary</p>
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3">
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">Plenary</p>
+                    <p className="font-serif text-2xl text-zinc-100 mt-1">{plenaryVoteCount}</p>
+                  </div>
+                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3">
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">Committee Total</p>
+                    <p className="font-serif text-2xl text-zinc-100 mt-1">{committeeVoteCount}</p>
+                  </div>
+                </div>
+
+                <div className="mt-3 space-y-1 text-sm text-zinc-300">
+                  {committeeEntries.length === 0 ? (
+                    <p className="text-zinc-500">No committee-scope votes yet.</p>
+                  ) : (
+                    committeeEntries.map(([scope, votes]) => (
+                      <p key={scope}>
+                        {toScopeName(scope)}: {votes}
+                      </p>
+                    ))
+                  )}
+                </div>
+              </div>
+
               <div className="mt-5 space-y-3">
                 {(electionSummary.data ?? []).map((position) => {
                   const candidates = (position.candidates ?? []) as Array<Record<string, unknown>>;

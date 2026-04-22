@@ -47,10 +47,10 @@ export function PlenaryElectionClient({
 }: PlenaryElectionClientProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [searchTerm, setSearchTerm] = useState('');
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(hasSubmitted);
   const [selections, setSelections] = useState<Record<string, string>>({});
+  const [positionSearch, setPositionSearch] = useState<Record<string, string>>({});
 
   useRealtimeRefresh({
     channelName: `election-live-${electionId}`,
@@ -63,27 +63,27 @@ export function PlenaryElectionClient({
     ],
   });
 
-  const scopes = useMemo(
-    () => Array.from(new Set(positions.map((position) => position.scope).filter((scope) => scope !== 'plenary'))),
+  const plenaryPositions = useMemo(
+    () => positions.filter((position) => position.scope === 'plenary'),
     [positions]
   );
 
-  const [selectedCommitteeScope, setSelectedCommitteeScope] = useState(scopes[0] ?? 'committee');
+  const committeeGroups = useMemo(() => {
+    const grouped = new Map<string, PositionBlock[]>();
 
-  const filteredPositions = useMemo(() => {
-    return positions.map((position) => ({
-      ...position,
-      candidates: position.candidates.filter((candidate) => {
-        const needle = searchTerm.toLowerCase();
-        return candidate.name.toLowerCase().includes(needle) || candidate.college.toLowerCase().includes(needle);
-      }),
-    }));
-  }, [positions, searchTerm]);
+    for (const position of positions) {
+      if (position.scope === 'plenary') {
+        continue;
+      }
 
-  const plenaryPositions = filteredPositions.filter((position) => position.scope === 'plenary');
-  const committeePositions = filteredPositions.filter((position) =>
-    position.scope === selectedCommitteeScope || (selectedCommitteeScope === 'committee' && position.scope !== 'plenary')
-  );
+      const key = position.scope || 'committee';
+      const existing = grouped.get(key) ?? [];
+      existing.push(position);
+      grouped.set(key, existing);
+    }
+
+    return Array.from(grouped.entries()).sort(([scopeA], [scopeB]) => scopeA.localeCompare(scopeB));
+  }, [positions]);
 
   const positionsWithoutCandidates = positions.filter((position) => position.candidates.length === 0);
   const requiredPositionIds = positions
@@ -94,6 +94,87 @@ export function PlenaryElectionClient({
 
   const handleSelect = (positionId: string, candidateId: string) => {
     setSelections((prev) => ({ ...prev, [positionId]: candidateId }));
+  };
+
+  const formatCandidateOption = (candidate: CandidateOption) => {
+    return `${candidate.name} (${candidate.college})`;
+  };
+
+  const handleAutocompleteInput = (position: PositionBlock, value: string) => {
+    setPositionSearch((prev) => ({
+      ...prev,
+      [position.id]: value,
+    }));
+
+    const matched = position.candidates.find(
+      (candidate) => formatCandidateOption(candidate).toLowerCase() === value.trim().toLowerCase()
+    );
+
+    if (matched) {
+      handleSelect(position.id, matched.id);
+      return;
+    }
+
+    setSelections((prev) => {
+      if (!prev[position.id]) {
+        return prev;
+      }
+
+      const next = { ...prev };
+      delete next[position.id];
+      return next;
+    });
+  };
+
+  const getSelectionLabel = (position: PositionBlock) => {
+    const selectedId = selections[position.id];
+    if (!selectedId) {
+      return null;
+    }
+
+    const selectedCandidate = position.candidates.find((candidate) => candidate.id === selectedId);
+    if (!selectedCandidate) {
+      return null;
+    }
+
+    return formatCandidateOption(selectedCandidate);
+  };
+
+  const renderPositionAutocomplete = (position: PositionBlock) => {
+    const datalistId = `position-candidates-${position.id}`;
+    const selectedLabel = getSelectionLabel(position);
+
+    return (
+      <div key={position.id} className="space-y-2">
+        <label className="text-xs uppercase tracking-widest font-bold text-ccd-text-sec block">{position.title}</label>
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <Search className="h-4 w-4 text-ccd-text-sec opacity-60" />
+          </div>
+          <input
+            type="search"
+            list={datalistId}
+            placeholder={`Search ${position.title}`}
+            className="w-full pl-10 pr-3 py-2.5 bg-ccd-surface/20 border border-ccd-accent/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-ccd-active"
+            value={positionSearch[position.id] ?? ''}
+            onChange={(event) => handleAutocompleteInput(position, event.target.value)}
+          />
+          <datalist id={datalistId}>
+            {position.candidates.map((candidate) => (
+              <option key={`${position.id}-${candidate.id}`} value={formatCandidateOption(candidate)} />
+            ))}
+          </datalist>
+        </div>
+
+        {position.candidates.length === 0 ? (
+          <p className="text-xs text-ccd-text-sec">No candidates available</p>
+        ) : selectedLabel ? (
+          <p className="text-xs text-ccd-active font-semibold">Selected: {selectedLabel}</p>
+        ) : (
+          <p className="text-xs text-ccd-text-sec">Start typing and choose from autocomplete suggestions.</p>
+        )}
+      </div>
+    );
   };
 
   const handleSubmit = () => {
@@ -152,96 +233,34 @@ export function PlenaryElectionClient({
           </div>
         ) : (
           <>
-            <div className="max-w-md mx-auto mb-8 relative">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <Search className="h-5 w-5 text-ccd-text-sec opacity-50" />
-              </div>
-              <input
-                type="text"
-                placeholder="Search candidates by name or college"
-                className="w-full pl-11 pr-4 py-3 bg-white border border-ccd-accent/30 rounded-2xl focus:outline-none focus:ring-2 focus:ring-ccd-active focus:border-transparent transition-all shadow-sm"
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-              />
-            </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12">
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-ccd-accent/20 shadow-sm">
                 <h2 className="font-serif text-2xl font-bold text-ccd-text mb-6 border-b border-ccd-accent/20 pb-4">Plenary Positions</h2>
 
                 <div className="space-y-6">
-                  {plenaryPositions.map((position) => (
-                    <div key={position.id} className="space-y-2">
-                      <label className="text-xs uppercase tracking-widest font-bold text-ccd-text-sec block">{position.title}</label>
-                      <select
-                        className="w-full p-4 bg-ccd-surface/20 border border-ccd-accent/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-ccd-active"
-                        value={selections[position.id] || ''}
-                        onChange={(event) => handleSelect(position.id, event.target.value)}
-                      >
-                        <option value="" disabled>
-                          Select a candidate
-                        </option>
-                        {position.candidates.map((candidate) => (
-                          <option key={`${position.id}-${candidate.id}`} value={candidate.id}>
-                            {candidate.name} ({candidate.college})
-                          </option>
-                        ))}
-                        {position.candidates.length === 0 && (
-                          <option value="" disabled>
-                            No candidates available
-                          </option>
-                        )}
-                      </select>
-                    </div>
-                  ))}
+                  {plenaryPositions.map((position) => renderPositionAutocomplete(position))}
                 </div>
               </div>
 
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-ccd-accent/20 shadow-sm h-fit gap-6 flex flex-col">
-                <div>
-                  <label className="text-xs uppercase tracking-widest font-bold text-ccd-text-sec block mb-2 mt-1">Assigning Votes For</label>
-                  <select
-                    className="w-full p-3 bg-ccd-bg font-serif text-lg border border-ccd-accent/40 rounded-xl focus:outline-none font-bold"
-                    value={selectedCommitteeScope}
-                    onChange={(event) => setSelectedCommitteeScope(event.target.value)}
-                  >
-                    {scopes.map((scope) => (
-                      <option key={scope} value={scope}>
-                        {scope}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="border-t border-ccd-accent/20 w-full mb-2" />
-
                 <h2 className="font-serif text-2xl font-bold text-ccd-text">Committee Positions</h2>
 
                 <div className="space-y-6">
-                  {committeePositions.map((position) => (
-                    <div key={position.id} className="space-y-2">
-                      <label className="text-xs uppercase tracking-widest font-bold text-ccd-text-sec block">{position.title}</label>
-                      <select
-                        className="w-full p-4 bg-ccd-surface/20 border border-ccd-accent/30 rounded-xl focus:outline-none focus:ring-2 focus:ring-ccd-active"
-                        value={selections[position.id] || ''}
-                        onChange={(event) => handleSelect(position.id, event.target.value)}
-                      >
-                        <option value="" disabled>
-                          Select a candidate
-                        </option>
-                        {position.candidates.map((candidate) => (
-                          <option key={`${position.id}-${candidate.id}`} value={candidate.id}>
-                            {candidate.name} ({candidate.college})
-                          </option>
+                  {committeeGroups.length === 0 ? (
+                    <p className="text-sm text-ccd-text-sec">No committee positions available.</p>
+                  ) : (
+                    committeeGroups.map(([scope, scopePositions]) => (
+                      <div key={scope} className="space-y-4">
+                        <h3 className="text-sm uppercase tracking-[0.18em] font-bold text-ccd-text-sec border-b border-ccd-accent/20 pb-2">
+                          {scope}
+                        </h3>
+
+                        {scopePositions.map((position) => (
+                          renderPositionAutocomplete(position)
                         ))}
-                        {position.candidates.length === 0 && (
-                          <option value="" disabled>
-                            No candidates available
-                          </option>
-                        )}
-                      </select>
-                    </div>
-                  ))}
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
 

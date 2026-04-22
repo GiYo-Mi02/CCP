@@ -482,6 +482,12 @@ export function AdminDashboardClient({ session, periods, totalMotions }: AdminDa
                     Manage Candidates
                   </Link>
                   <Link
+                    href="/admin/elections/results"
+                    className="px-3 py-2 rounded-lg border border-cyan-600/40 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20 text-xs uppercase tracking-[0.12em]"
+                  >
+                    Election Results Board
+                  </Link>
+                  <Link
                     href="/admin/er"
                     className="px-3 py-2 rounded-lg border border-zinc-700 text-zinc-200 hover:bg-zinc-800 text-xs uppercase tracking-[0.12em]"
                   >

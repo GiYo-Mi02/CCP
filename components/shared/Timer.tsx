@@ -52,12 +52,12 @@ export function Timer({ targetDate, className }: TimerProps) {
       </div>
     );
   }
-
+const hours = Math.floor(timeLeft / 1000 / 60 / 60);
   const minutes = Math.floor((timeLeft / 1000 / 60) % 60);
   const seconds = Math.floor((timeLeft / 1000) % 60);
   const ms = Math.floor((timeLeft % 1000) / 10); // get 2 digits for ms
 
-  const formatTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+  const formatTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
 
   const isWarning = timeLeft < 5 * 60 * 1000 && timeLeft >= 60 * 1000; // between 1 and 5 minutes
   const isDanger = timeLeft < 60 * 1000; // under 1 minute

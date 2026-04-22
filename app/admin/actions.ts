@@ -81,17 +81,19 @@ const REQUIRED_PERIODS: Array<{ period_type: PeriodType; sort_order: number }> =
 
 const PLENARY_POSITION_TITLES = [
   'Presiding Officer',
-  'Deputy P.O.',
+  'Deputy Presiding Officer',
   'Secretary General',
-  'Deputy S.G.',
+  'Deputy Secretary General',
   'Majority Floor Leader',
   'Minority Floor Leader',
 ];
 
 const COMMITTEE_POSITION_TITLES = [
-  'Committee Chairperson',
-  'Deputy Chairperson',
+  'Committee Chair',
+  'Deputy Committee Chair',
   'Committee Secretary',
+  'Deputy Secretary',
+  'Committee Member',
 ];
 
 const PERIOD_LIFECYCLE: PeriodState[] = [
@@ -102,10 +104,159 @@ const PERIOD_LIFECYCLE: PeriodState[] = [
   'closed',
 ];
 
+const LEGACY_POSITION_TITLE_MAP: Record<string, string> = {
+  'Deputy P.O.': 'Deputy Presiding Officer',
+  'Deputy S.G.': 'Deputy Secretary General',
+  'Committee Chairperson': 'Committee Chair',
+  'Deputy Chairperson': 'Deputy Committee Chair',
+  'Deputy Committee Secretary': 'Deputy Secretary',
+};
+
+const NON_ELECTIVE_COMMITTEE_SCOPE = 'rules, ethics and privileges';
+const NON_ELECTIVE_CHAIR_TITLES = new Set([
+  'committee chair',
+  'committee chairperson',
+  'chairperson',
+]);
+function normalizeText(value: string) {
+  return value.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function shouldExcludeCommitteePosition(title: string, scope: string) {
+  const normalizedScope = normalizeText(scope);
+  const normalizedTitle = normalizeText(title);
+
+  return (
+    normalizedScope === NON_ELECTIVE_COMMITTEE_SCOPE &&
+    NON_ELECTIVE_CHAIR_TITLES.has(normalizedTitle)
+  );
+}
+
+function formatAssignedPosition(title: string, scope: string) {
+  const normalizedScope = scope.trim().toLowerCase();
+
+  if (normalizedScope === 'plenary') {
+    return title;
+  }
+
+  if (normalizedScope === 'committee') {
+    return `${title} (Committee)`;
+  }
+
+  return `${title} (${scope})`;
+}
+
+async function assignMajorityWinnersToProfiles(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  electionId: string
+) {
+  const { data: positions, error: positionsError } = await supabase
+    .from('election_positions')
+    .select(
+      `
+      id,
+      title,
+      scope,
+      candidates (
+        id,
+        profile_id,
+        votes:election_votes!candidate_id (id)
+      )
+    `
+    )
+    .eq('election_id', electionId);
+
+  if (positionsError) {
+    return { error: positionsError.message };
+  }
+
+  const electedByProfile = new Map<string, string[]>();
+
+  for (const position of positions ?? []) {
+    const candidateRows = (position.candidates ?? []) as Array<{
+      id: string;
+      profile_id: string;
+      votes?: Array<{ id: string }>;
+    }>;
+
+    if (candidateRows.length === 0) {
+      continue;
+    }
+
+    const counts = candidateRows.map((candidate) => ({
+      profileId: candidate.profile_id,
+      voteCount: Array.isArray(candidate.votes) ? candidate.votes.length : 0,
+    }));
+
+    const totalVotes = counts.reduce((sum, row) => sum + row.voteCount, 0);
+    if (totalVotes === 0) {
+      continue;
+    }
+
+    const sorted = [...counts].sort((left, right) => right.voteCount - left.voteCount);
+    const top = sorted[0];
+    const second = sorted[1];
+    const hasMajority = top.voteCount > totalVotes / 2;
+    const hasTieAtTop = Boolean(second) && second.voteCount === top.voteCount;
+
+    if (!hasMajority || hasTieAtTop) {
+      continue;
+    }
+
+    const assignedLabel = formatAssignedPosition(position.title, position.scope);
+    const existingAssignments = electedByProfile.get(top.profileId) ?? [];
+
+    if (!existingAssignments.includes(assignedLabel)) {
+      existingAssignments.push(assignedLabel);
+      electedByProfile.set(top.profileId, existingAssignments);
+    }
+  }
+
+  const { data: delegates, error: delegatesError } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('role', 'delegate');
+
+  if (delegatesError) {
+    return { error: delegatesError.message };
+  }
+
+  const timestamp = new Date().toISOString();
+  const profileUpdates = (delegates ?? []).map((delegate) => ({
+    id: delegate.id,
+    elected_positions: electedByProfile.get(delegate.id) ?? [],
+    updated_at: timestamp,
+  }));
+
+  if (profileUpdates.length > 0) {
+    const { error: updateProfilesError } = await supabase
+      .from('profiles')
+      .upsert(profileUpdates, { onConflict: 'id' });
+
+    if (updateProfilesError) {
+      return { error: updateProfilesError.message };
+    }
+  }
+
+  return { success: true };
+}
+
 async function ensureElectionScaffold(
   supabase: Awaited<ReturnType<typeof createClient>>,
   electionId: string
 ) {
+  for (const [legacyTitle, canonicalTitle] of Object.entries(LEGACY_POSITION_TITLE_MAP)) {
+    const { error: renameError } = await supabase
+      .from('election_positions')
+      .update({ title: canonicalTitle })
+      .eq('election_id', electionId)
+      .eq('title', legacyTitle);
+
+    if (renameError) {
+      return { error: renameError.message };
+    }
+  }
+
   const { data: delegates, error: delegatesError } = await supabase
     .from('profiles')
     .select('id, committee, role')
@@ -144,7 +295,7 @@ async function ensureElectionScaffold(
           COMMITTEE_POSITION_TITLES.map((title) => ({ title, scope }))
         )
       : COMMITTEE_POSITION_TITLES.map((title) => ({ title, scope: 'committee' }))),
-  ];
+  ].filter((position) => !shouldExcludeCommitteePosition(position.title, position.scope));
 
   const { data: existingPositions, error: positionsError } = await supabase
     .from('election_positions')
@@ -155,8 +306,27 @@ async function ensureElectionScaffold(
     return { error: positionsError.message };
   }
 
+  const disallowedPositionIds = (existingPositions ?? [])
+    .filter((position) => shouldExcludeCommitteePosition(position.title, position.scope))
+    .map((position) => position.id);
+
+  if (disallowedPositionIds.length > 0) {
+    const { error: deleteDisallowedError } = await supabase
+      .from('election_positions')
+      .delete()
+      .in('id', disallowedPositionIds);
+
+    if (deleteDisallowedError) {
+      return { error: deleteDisallowedError.message };
+    }
+  }
+
+  const validExistingPositions = (existingPositions ?? []).filter(
+    (position) => !shouldExcludeCommitteePosition(position.title, position.scope)
+  );
+
   const existingKeys = new Set(
-    (existingPositions ?? []).map((position) => `${position.title}::${position.scope}`)
+    validExistingPositions.map((position) => `${position.title}::${position.scope}`)
   );
 
   const missingPositions = desiredPositions.filter(
@@ -290,6 +460,31 @@ async function syncElectionLifecycle(
 
   if (status === 'CLOSED' || status === 'OPEN') {
     const targetStatus = status === 'CLOSED' ? 'closed' : 'pending';
+
+    if (status === 'CLOSED') {
+      const { data: activeElection, error: activeElectionError } = await supabase
+        .from('elections')
+        .select('id')
+        .eq('session_id', sessionId)
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (activeElectionError) {
+        return { error: activeElectionError.message };
+      }
+
+      if (activeElection?.id) {
+        const assignmentResult = await assignMajorityWinnersToProfiles(
+          supabase,
+          activeElection.id
+        );
+
+        if ('error' in assignmentResult) {
+          return assignmentResult;
+        }
+      }
+    }
+
     const { error: closeError } = await supabase
       .from('elections')
       .update({ status: targetStatus })
@@ -399,6 +594,7 @@ export async function initializeConventionFlow(sessionName?: string) {
 
   revalidatePath('/admin');
   revalidatePath('/home');
+  revalidatePath('/dashboard');
   revalidatePath('/plencommelec');
   revalidatePath('/periods/quash');
   revalidatePath('/periods/amendment');
@@ -485,6 +681,7 @@ export async function updatePeriodStatus(
 
   revalidatePath('/admin');
   revalidatePath('/home');
+  revalidatePath('/dashboard');
   revalidatePath('/plencommelec');
   revalidatePath('/admin/er');
   revalidatePath('/periods/final');
@@ -625,6 +822,7 @@ export async function advancePeriodStage(periodId: string) {
   revalidatePath('/admin');
   revalidatePath('/admin/er');
   revalidatePath('/home');
+  revalidatePath('/dashboard');
   revalidatePath('/plencommelec');
   revalidatePath('/periods/quash');
   revalidatePath('/periods/amendment');
@@ -723,6 +921,7 @@ export async function resetPeriodVotes(periodId: string) {
   revalidatePath('/admin');
   revalidatePath('/admin/er');
   revalidatePath('/home');
+  revalidatePath('/dashboard');
   revalidatePath('/plencommelec');
   revalidatePath('/periods/quash');
   revalidatePath('/periods/amendment');
