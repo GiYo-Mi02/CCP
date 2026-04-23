@@ -2,13 +2,13 @@
 
 import { ShieldCheck } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
-import React from 'react';
+import React, { Suspense } from 'react';
 import { acceptDataPrivacyConsent } from '@/lib/actions/auth';
 
 const DATA_PRIVACY_CONSENT_TEXT =
   'By signing in or creating an account, you consent to the collection, processing, and storage of your personal data by the Constitutional Convention Platform (CCP) in compliance with the Data Privacy Act of 2012 (Republic Act No. 10173) of the Philippines. Your information will be used solely for authentication, role verification, and convention operations. We are committed to protecting your data against unauthorized access or disclosure.';
 
-export default function ConsentPage() {
+function ConsentContent() {
   const searchParams = useSearchParams();
   const nextPath = searchParams.get('next') ?? '/home';
 
@@ -85,5 +85,17 @@ export default function ConsentPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ConsentPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-ccd-bg flex items-center justify-center">
+        <p className="text-ccd-text-sec text-sm">Loading...</p>
+      </div>
+    }>
+      <ConsentContent />
+    </Suspense>
   );
 }
