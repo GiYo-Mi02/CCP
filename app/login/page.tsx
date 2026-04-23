@@ -1,9 +1,9 @@
 'use client';
-import React from 'react';
+import React, { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { loginWithEmail, loginWithGoogle } from '@/lib/actions/auth';
 
-export default function LoginPage() {
+function LoginContent() {
   const searchParams = useSearchParams();
   const [error, setError] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
@@ -148,5 +148,17 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-ccd-bg flex items-center justify-center">
+        <p className="text-ccd-text-sec text-sm">Loading...</p>
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   );
 }
