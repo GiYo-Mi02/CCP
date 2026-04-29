@@ -1,12 +1,12 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useMemo, useState, useTransition, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, X, Check, Minus } from 'lucide-react';
+import { Plus, X, Check, Minus, MoreVertical, Trash2, EyeOff, Eye } from 'lucide-react';
 import { TopNav } from '@/components/shared/TopNav';
 import { Timer } from '@/components/shared/Timer';
 import { castVote } from '@/lib/actions/votes';
-import { submitMotion } from '@/lib/actions/motions';
+import { submitMotion, deleteMotion, hideMotion, unhideMotion } from '@/lib/actions/motions';
 import type { MotionType, PeriodState, VoteValue } from '@/lib/types/database';
 import { useRealtimeRefresh } from '@/hooks/use-realtime-refresh';
 
@@ -18,6 +18,7 @@ export interface PeriodMotionItem {
   proposed_text: string | null;
   justification: string | null;
   status: string;
+  is_hidden?: boolean;
   author_name?: string;
   author_committee?: string;
 }
@@ -44,6 +45,7 @@ interface PeriodPageClientProps {
   voteAggregates: PeriodVoteAggregate[];
   userVotes: Array<{ motion_id: string; vote_value: VoteValue }>;
   allowSubmission?: boolean;
+  isAdmin?: boolean;
 }
 
 function toTitleCase(value: string) {
@@ -57,6 +59,129 @@ function passRate(aggregate: PeriodVoteAggregate) {
   if (aggregate.total === 0) return 0;
   return (aggregate.adapt / aggregate.total) * 100;
 }
+
+// ─── Kebab Menu Component ────────────────────────────────────────────
+
+function MotionKebabMenu({
+  motionId,
+  isHidden,
+  onAction,
+}: {
+  motionId: string;
+  isHidden: boolean;
+  onAction: (action: 'delete' | 'hide' | 'unhide', motionId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [open]);
+
+  return (
+    <div ref={menuRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="p-1.5 rounded-lg text-ccd-text-sec hover:text-ccd-text hover:bg-ccd-surface/60 transition-colors"
+        aria-label="Motion actions"
+      >
+        <MoreVertical className="w-4 h-4" />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-ccd-accent/20 rounded-xl shadow-lg z-50 py-1 animate-in fade-in slide-in-from-top-1 duration-150">
+          <button
+            type="button"
+            onClick={() => {
+              onAction(isHidden ? 'unhide' : 'hide', motionId);
+              setOpen(false);
+            }}
+            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-ccd-text hover:bg-ccd-surface/40 transition-colors"
+          >
+            {isHidden ? (
+              <>
+                <Eye className="w-4 h-4 text-ccd-success" />
+                <span>Unhide</span>
+              </>
+            ) : (
+              <>
+                <EyeOff className="w-4 h-4 text-ccd-neutral" />
+                <span>Hide</span>
+              </>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onAction('delete', motionId);
+              setOpen(false);
+            }}
+            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-ccd-danger hover:bg-ccd-danger/5 transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span>Delete</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Delete Confirmation Dialog ──────────────────────────────────────
+
+function DeleteConfirmDialog({
+  onConfirm,
+  onCancel,
+  isPending,
+}: {
+  onConfirm: () => void;
+  onCancel: () => void;
+  isPending: boolean;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-ccd-text/60 backdrop-blur-sm" onClick={onCancel} />
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl relative z-10 p-6 sm:p-8 text-center">
+        <div className="mx-auto w-12 h-12 rounded-full bg-ccd-danger/10 flex items-center justify-center mb-4">
+          <Trash2 className="w-6 h-6 text-ccd-danger" />
+        </div>
+        <h3 className="font-serif text-xl font-bold text-ccd-text mb-2">Delete Proposal?</h3>
+        <p className="text-ccd-text-sec text-sm mb-6">
+          This action is <strong>permanent</strong>. The proposal and all associated votes will be removed from the database.
+        </p>
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isPending}
+            className="flex-1 py-3 rounded-xl border border-ccd-accent/30 text-ccd-text font-bold uppercase text-xs tracking-widest hover:bg-ccd-surface/40 transition-colors disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={isPending}
+            className="flex-1 py-3 rounded-xl bg-ccd-danger text-white font-bold uppercase text-xs tracking-widest hover:bg-ccd-danger/90 transition-colors disabled:opacity-50"
+          >
+            {isPending ? 'Deleting...' : 'Delete'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Component ──────────────────────────────────────────────────
 
 export function PeriodPageClient({
   delegateName,
@@ -72,11 +197,13 @@ export function PeriodPageClient({
   voteAggregates,
   userVotes,
   allowSubmission = true,
+  isAdmin = false,
 }: PeriodPageClientProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   useRealtimeRefresh({
     channelName: `period-live-${periodId}`,
@@ -133,6 +260,48 @@ export function PeriodPageClient({
 
       setIsModalOpen(false);
       setFeedback(`${periodTitle} proposal submitted successfully.`);
+      router.refresh();
+    });
+  };
+
+  // ─── Admin actions ──────────────────────────────────────────────
+
+  const handleMotionAction = (action: 'delete' | 'hide' | 'unhide', motionId: string) => {
+    if (action === 'delete') {
+      setDeleteTarget(motionId);
+      return;
+    }
+
+    setFeedback(null);
+    startTransition(async () => {
+      const result = action === 'hide'
+        ? await hideMotion(motionId)
+        : await unhideMotion(motionId);
+
+      if (result?.error) {
+        setFeedback(typeof result.error === 'string' ? result.error : 'Action failed.');
+        return;
+      }
+
+      setFeedback(action === 'hide' ? 'Proposal hidden from delegates.' : 'Proposal is now visible to delegates.');
+      router.refresh();
+    });
+  };
+
+  const handleConfirmDelete = () => {
+    if (!deleteTarget) return;
+
+    setFeedback(null);
+    startTransition(async () => {
+      const result = await deleteMotion(deleteTarget);
+      if (result?.error) {
+        setFeedback(typeof result.error === 'string' ? result.error : 'Delete failed.');
+        setDeleteTarget(null);
+        return;
+      }
+
+      setDeleteTarget(null);
+      setFeedback('Proposal permanently deleted.');
       router.refresh();
     });
   };
@@ -197,17 +366,42 @@ export function PeriodPageClient({
                 ({ motion_id: motion.id, adapt: 0, quash: 0, abstain: 0, total: 0 } as PeriodVoteAggregate);
 
               const userVote = userVoteMap.get(motion.id) ?? null;
+              const motionIsHidden = motion.is_hidden ?? false;
 
               return (
-                <article key={motion.id} className="bg-white rounded-2xl border border-ccd-accent/20 p-6 shadow-sm">
+                <article
+                  key={motion.id}
+                  className={`bg-white rounded-2xl border p-6 shadow-sm transition-opacity ${
+                    motionIsHidden
+                      ? 'border-ccd-neutral/30 opacity-60'
+                      : 'border-ccd-accent/20'
+                  }`}
+                >
                   <div className="flex justify-between items-start gap-4">
-                    <div>
-                      <h3 className="font-serif text-2xl text-ccd-text">{motion.article_ref || 'Untitled Article'}</h3>
-                      <p className="uppercase tracking-widest text-xs text-ccd-text-sec mt-1">{motion.section_ref || 'Unspecified Section'}</p>
+                    <div className="flex items-center gap-3">
+                      <div>
+                        <h3 className="font-serif text-2xl text-ccd-text">{motion.article_ref || 'Untitled Article'}</h3>
+                        <p className="uppercase tracking-widest text-xs text-ccd-text-sec mt-1">{motion.section_ref || 'Unspecified Section'}</p>
+                      </div>
+                      {motionIsHidden && (
+                        <span className="px-2.5 py-1 bg-ccd-neutral/10 text-ccd-neutral text-[10px] font-bold uppercase tracking-widest rounded-full border border-ccd-neutral/20">
+                          Hidden
+                        </span>
+                      )}
                     </div>
-                    <span className="px-3 py-1 bg-ccd-surface rounded-full text-[10px] font-bold uppercase tracking-widest text-ccd-text-sec border border-ccd-accent/20">
-                      {motion.author_committee || 'Committee Unassigned'}
-                    </span>
+
+                    <div className="flex items-center gap-2">
+                      <span className="px-3 py-1 bg-ccd-surface rounded-full text-[10px] font-bold uppercase tracking-widest text-ccd-text-sec border border-ccd-accent/20">
+                        {motion.author_committee || 'Committee Unassigned'}
+                      </span>
+                      {isAdmin && (
+                        <MotionKebabMenu
+                          motionId={motion.id}
+                          isHidden={motionIsHidden}
+                          onAction={handleMotionAction}
+                        />
+                      )}
+                    </div>
                   </div>
 
                   <div className="mt-5 space-y-3 text-ccd-text">
@@ -349,6 +543,14 @@ export function PeriodPageClient({
             </div>
           </form>
         </div>
+      )}
+
+      {deleteTarget && (
+        <DeleteConfirmDialog
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setDeleteTarget(null)}
+          isPending={isPending}
+        />
       )}
     </div>
   );

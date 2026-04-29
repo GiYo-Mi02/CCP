@@ -46,7 +46,8 @@ export default async function QuashingPeriodPage() {
     redirect('/home');
   }
 
-  const motionsResult = await getMotionsByPeriod(period.id);
+  const isAdmin = profileResult.data.role === 'admin';
+  const motionsResult = await getMotionsByPeriod(period.id, isAdmin);
   const motions = motionsResult.data ?? [];
 
   const motionIds = motions.map((motion) => motion.id);
@@ -75,11 +76,13 @@ export default async function QuashingPeriodPage() {
         proposed_text: motion.proposed_text,
         justification: motion.justification,
         status: motion.status,
+        is_hidden: motion.is_hidden ?? false,
         author_name: motion.author?.full_name,
         author_committee: motion.author?.committee,
       }))}
       voteAggregates={aggregatesResult.data ?? []}
       userVotes={userVotesResult.data ?? []}
+      isAdmin={isAdmin}
     />
   );
 }

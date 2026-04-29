@@ -4,6 +4,46 @@ import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import type { MotionType } from '@/lib/types/database';
 
+// ─── Admin guard (self-contained to avoid circular imports) ──────────
+
+async function requireAdmin() {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: 'Not authenticated.' as const };
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (!profile || profile.role !== 'admin') {
+    return { error: 'Unauthorized: Admin access required.' as const };
+  }
+
+  return { supabase, user };
+}
+
+// ─── Revalidation helper ─────────────────────────────────────────────
+
+function revalidateMotionPaths() {
+  revalidatePath('/admin');
+  revalidatePath('/home');
+  revalidatePath('/periods/amendment');
+  revalidatePath('/periods/insertion');
+  revalidatePath('/periods/quash');
+  revalidatePath('/quick-motion');
+  revalidatePath('/periods');
+}
+
+// ─── Submission Actions ──────────────────────────────────────────────
+
 /**
  * Submit a motion (amendment, insertion, quash) to the specified period.
  * Validates that the period is in 'active' state before accepting.
@@ -88,20 +128,99 @@ export async function submitQuickMotion(formData: FormData) {
   return { success: true };
 }
 
+// ─── Delete / Hide / Unhide Actions (Admin-Only) ────────────────────
+
+/**
+ * Permanently delete a motion and its cascaded votes from the database.
+ * Admin-only.
+ */
+export async function deleteMotion(motionId: string) {
+  if (!motionId) return { error: 'Motion ID is required.' };
+
+  const adminCheck = await requireAdmin();
+  if ('error' in adminCheck) return { error: adminCheck.error };
+
+  const { supabase } = adminCheck;
+
+  const { error } = await supabase
+    .from('motions')
+    .delete()
+    .eq('id', motionId);
+
+  if (error) return { error: error.message };
+
+  revalidateMotionPaths();
+  return { success: true };
+}
+
+/**
+ * Soft-hide a motion. It stays in the database but is not shown to delegates.
+ * Admin-only.
+ */
+export async function hideMotion(motionId: string) {
+  if (!motionId) return { error: 'Motion ID is required.' };
+
+  const adminCheck = await requireAdmin();
+  if ('error' in adminCheck) return { error: adminCheck.error };
+
+  const { supabase } = adminCheck;
+
+  const { error } = await supabase
+    .from('motions')
+    .update({ is_hidden: true, updated_at: new Date().toISOString() })
+    .eq('id', motionId);
+
+  if (error) return { error: error.message };
+
+  revalidateMotionPaths();
+  return { success: true };
+}
+
+/**
+ * Restore a previously hidden motion so it becomes visible to delegates again.
+ * Admin-only.
+ */
+export async function unhideMotion(motionId: string) {
+  if (!motionId) return { error: 'Motion ID is required.' };
+
+  const adminCheck = await requireAdmin();
+  if ('error' in adminCheck) return { error: adminCheck.error };
+
+  const { supabase } = adminCheck;
+
+  const { error } = await supabase
+    .from('motions')
+    .update({ is_hidden: false, updated_at: new Date().toISOString() })
+    .eq('id', motionId);
+
+  if (error) return { error: error.message };
+
+  revalidateMotionPaths();
+  return { success: true };
+}
+
+// ─── Query Actions ───────────────────────────────────────────────────
+
 /**
  * Fetch all motions for a given period, ordered by creation date.
+ * When includeHidden is false (default), hidden motions are filtered out.
  */
-export async function getMotionsByPeriod(periodId: string) {
+export async function getMotionsByPeriod(periodId: string, includeHidden = false) {
   const supabase = await createClient();
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('motions')
     .select(`
       *,
       author:profiles!author_id (full_name, college, committee)
     `)
-    .eq('period_id', periodId)
-    .order('created_at', { ascending: true });
+    .eq('period_id', periodId);
+
+  if (!includeHidden) {
+    query = query.eq('is_hidden', false);
+  }
+
+  const { data, error } = await query.order('created_at', { ascending: true });
 
   if (error) return { error: error.message };
   return { data };
@@ -110,11 +229,12 @@ export async function getMotionsByPeriod(periodId: string) {
 /**
  * Fetch motions and all related votes in a single query.
  * This avoids the common server-component waterfall caused by follow-up vote queries.
+ * When includeHidden is false (default), hidden motions are filtered out.
  */
-export async function getMotionsWithVotesByPeriod(periodId: string) {
+export async function getMotionsWithVotesByPeriod(periodId: string, includeHidden = false) {
   const supabase = await createClient();
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('motions')
     .select(`
       *,
@@ -124,8 +244,13 @@ export async function getMotionsWithVotesByPeriod(periodId: string) {
         vote_value
       )
     `)
-    .eq('period_id', periodId)
-    .order('created_at', { ascending: true });
+    .eq('period_id', periodId);
+
+  if (!includeHidden) {
+    query = query.eq('is_hidden', false);
+  }
+
+  const { data, error } = await query.order('created_at', { ascending: true });
 
   if (error) return { error: error.message };
   return { data };

@@ -18,6 +18,7 @@ interface MotionWithVotesRow {
   proposed_text: string | null;
   justification: string | null;
   status: string;
+  is_hidden?: boolean;
   author?: {
     full_name?: string | null;
     committee?: string | null;
@@ -66,7 +67,8 @@ export default async function AmendmentPeriodPage() {
     redirect('/home');
   }
 
-  const motionsResult = await getMotionsWithVotesByPeriod(period.id);
+  const isAdmin = profileResult.data.role === 'admin';
+  const motionsResult = await getMotionsWithVotesByPeriod(period.id, isAdmin);
   const rawMotions = (motionsResult.data ?? []) as MotionWithVotesRow[];
   const userId = profileResult.data.id;
 
@@ -113,6 +115,7 @@ export default async function AmendmentPeriodPage() {
       proposed_text: motion.proposed_text,
       justification: motion.justification,
       status: motion.status,
+      is_hidden: motion.is_hidden ?? false,
       author_name: motion.author?.full_name ?? undefined,
       author_committee: motion.author?.committee ?? undefined,
     };
@@ -132,6 +135,7 @@ export default async function AmendmentPeriodPage() {
       motions={formattedMotions}
       voteAggregates={aggregatesData}
       userVotes={userVotesData}
+      isAdmin={isAdmin}
     />
   );
 }

@@ -15,6 +15,7 @@ interface QuickMotionWithVotesRow {
   article_ref: string;
   section_ref: string;
   proposed_text: string | null;
+  is_hidden?: boolean;
   author?: {
     full_name?: string | null;
     committee?: string | null;
@@ -63,7 +64,8 @@ export default async function QuickMotionPage() {
     redirect('/home');
   }
 
-  const motionsResult = await getMotionsWithVotesByPeriod(period.id);
+  const isAdmin = profileResult.data.role === 'admin';
+  const motionsResult = await getMotionsWithVotesByPeriod(period.id, isAdmin);
   const rawMotions = (motionsResult.data ?? []) as QuickMotionWithVotesRow[];
   const userId = profileResult.data.id;
 
@@ -107,6 +109,7 @@ export default async function QuickMotionPage() {
       article_ref: motion.article_ref,
       section_ref: motion.section_ref,
       proposed_text: motion.proposed_text,
+      is_hidden: motion.is_hidden ?? false,
       author_name: motion.author?.full_name ?? undefined,
       author_committee: motion.author?.committee ?? undefined,
     };
@@ -123,6 +126,7 @@ export default async function QuickMotionPage() {
       motions={formattedMotions}
       voteAggregates={aggregatesData}
       userVotes={userVotesData}
+      isAdmin={isAdmin}
     />
   );
 }

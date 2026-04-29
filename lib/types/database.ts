@@ -63,6 +63,7 @@ export interface Motion {
   proposed_text: string | null;
   justification: string | null;
   status: MotionStatus;
+  is_hidden: boolean;
   created_at: string;
   updated_at: string;
 }
