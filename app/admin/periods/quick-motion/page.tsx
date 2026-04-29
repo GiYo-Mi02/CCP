@@ -27,6 +27,7 @@ export default async function AdminQuickMotionReviewPage() {
       heading="Quick Motion Review"
       summary="Inspect quick motion proposals, proposer intent, and complete voter-by-voter outcome details."
       sessionName={details.session.name}
+      periodId={details.period.id}
       state={details.period.state}
       deadline={details.period.deadline}
       motionDetails={details.motionDetails}

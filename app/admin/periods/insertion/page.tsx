@@ -27,6 +27,7 @@ export default async function AdminInsertionReviewPage() {
       heading="Insertion Period Review"
       summary="Review new section insertions with exact proposed text, the reason for insertion, and named vote monitoring for every motion."
       sessionName={details.session.name}
+      periodId={details.period.id}
       state={details.period.state}
       deadline={details.period.deadline}
       motionDetails={details.motionDetails}

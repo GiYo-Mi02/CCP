@@ -27,6 +27,7 @@ export default async function AdminQuashReviewPage() {
       heading="Quashing Period Review"
       summary="Track each quash proposal, who submitted it, why they want it removed, and exactly who voted for quash/adapt/abstain."
       sessionName={details.session.name}
+      periodId={details.period.id}
       state={details.period.state}
       deadline={details.period.deadline}
       motionDetails={details.motionDetails}

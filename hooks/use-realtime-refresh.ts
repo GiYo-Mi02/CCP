@@ -35,14 +35,23 @@ export function useRealtimeRefresh({
 
   // Keep router in a ref so it never causes effect re-runs.
   const routerRef = useRef(router);
-  routerRef.current = router;
 
   // Keep timing values in refs to avoid effect churn.
   const throttleMsRef = useRef(throttleMs);
-  throttleMsRef.current = throttleMs;
 
   const fallbackPollingMsRef = useRef(fallbackPollingMs);
-  fallbackPollingMsRef.current = fallbackPollingMs;
+
+  useEffect(() => {
+    routerRef.current = router;
+  }, [router]);
+
+  useEffect(() => {
+    throttleMsRef.current = throttleMs;
+  }, [throttleMs]);
+
+  useEffect(() => {
+    fallbackPollingMsRef.current = fallbackPollingMs;
+  }, [fallbackPollingMs]);
 
   // Build a stable JSON signature from the tables config.
   // Even though `tables` is a new array reference each render, the

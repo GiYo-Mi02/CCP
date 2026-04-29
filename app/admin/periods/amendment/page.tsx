@@ -27,6 +27,7 @@ export default async function AdminAmendmentReviewPage() {
       heading="Amendment Period Review"
       summary="Inspect amendment proposals with original text, proposed replacement text, proposer rationale, and complete voter identity breakdown."
       sessionName={details.session.name}
+      periodId={details.period.id}
       state={details.period.state}
       deadline={details.period.deadline}
       motionDetails={details.motionDetails}

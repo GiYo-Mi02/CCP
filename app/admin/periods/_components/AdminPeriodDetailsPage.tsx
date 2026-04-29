@@ -8,6 +8,7 @@ interface AdminPeriodDetailsPageProps {
   heading: string;
   summary: string;
   sessionName: string;
+  periodId: string;
   state: string;
   deadline: string | null;
   motionDetails: AdminPeriodMotionDetail[];
@@ -63,6 +64,7 @@ export function AdminPeriodDetailsPage({
   heading,
   summary,
   sessionName,
+  periodId,
   state,
   deadline,
   motionDetails,
@@ -70,8 +72,8 @@ export function AdminPeriodDetailsPage({
   useRealtimeRefresh({
     channelName: `admin-period-details-${heading.toLowerCase().replace(/\s+/g, '-')}`,
     tables: [
-      { table: 'periods' },
-      { table: 'motions' },
+      { table: 'periods', filter: `id=eq.${periodId}` },
+      { table: 'motions', filter: `period_id=eq.${periodId}` },
       { table: 'votes' },
     ],
   });
@@ -127,8 +129,9 @@ export function AdminPeriodDetailsPage({
                       </p>
                     </div>
 
-                    <div className="rounded-xl border border-zinc-800 bg-zinc-950/70 p-3 text-xs text-zinc-300">
+                    <div className="rounded-xl border border-zinc-800 bg-zinc-950/70 p-3 text-xs text-zinc-300 space-y-1">
                       <p>Status: {titleCase(motion.status)}</p>
+                      {motion.is_hidden ? <p className="text-amber-300">Hidden from delegates</p> : null}
                       <p>Total Votes: {counts.total}</p>
                     </div>
                   </div>

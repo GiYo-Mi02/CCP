@@ -20,6 +20,7 @@ export interface AdminPeriodMotionRow {
   proposed_text: string | null;
   justification: string | null;
   status: string;
+  is_hidden: boolean;
   created_at: string;
   author: {
     full_name: string;
@@ -91,6 +92,7 @@ export async function getAdminPeriodDetails(
       proposed_text,
       justification,
       status,
+      is_hidden,
       created_at,
       author:profiles!author_id (full_name, college, committee)
     `
